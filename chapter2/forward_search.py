@@ -22,20 +22,27 @@ def forward_search(x_init, x_goal, get_actions, transition):
                 queue.append(x_next)
     
     return None
-        
-        
 
-def _extract_plan(parent, goal): 
-    "walk the parent map backward to reconstruct the action sequence"
-    plan, state = [], goal 
 
-    while parent[state][0] is not None: 
-        prev, action = parent[state]
-        plan.append((state, action))
-        state = prev 
+
+
+
+
+
+
     
-    plan.reverse() 
-    return plan 
+
+    def _extract_plan(parent, goal): 
+        "walk the parent map backward to reconstruct the action sequence"
+        plan, state = [], goal 
+
+        while parent[state][0] is not None: 
+            prev, action = parent[state]
+            plan.append((state, action))
+            state = prev 
+        
+        plan.reverse() 
+        return plan 
 
 
 # S = start G = goal . free # walls
