@@ -1,4 +1,27 @@
 from collections import deque
+"""
+Bidirectional search - Lavalle's Planning Algorithms
+
+Runs forward from x_I and backward from x_G simultaneously.
+Terminates when the two frontiers share a state (x_mid)
+
+Complexity advantage: 
+Forward only: O(b^d)
+Bidirectional: O(b^(d/2)) + O(b^(d/2)) two half-depth trees
+
+The two searches alternate one expansion at a time (the "interleaving" strategy).
+
+"""
+
+DIRECTIONS = {
+    "up": (-1, 0),
+    "down": (1, 0),
+    "left": (0, -1),
+    "right": (0, 1)
+}
+
+INVERSE = {"up": "down", "down": "up", "left": "right", "right": "left"}
+
 
 def bidirectional_search(
     x_init,
@@ -48,6 +71,8 @@ def bidirectional_search(
                 return _build_plan(fwd_parent, bwd_parent, x_init, x_mid, x_goal)
         
     return None 
+
+
 def _expand(queue, visited, parent, get_actions, transition, other):
     if not queue:
         return None 
@@ -91,3 +116,82 @@ def _build_plan(fwd_parent, bwd_parent, x_init, x_mid, x_goal):
         state = next_state
 
     return fwd_half + bwd_half
+
+
+GRID = [
+    "S.....#.",
+    ".####...",
+    "....#..G",
+    "..#.....",
+]
+
+
+def parse_grid(grid):
+    start, goal = None 
+    walls = set() 
+    for r, row in enumerate(grid):
+        for c, ch in enumerate(row):
+            if ch == 'S': start = (r, c)
+            if ch == 'G': goal = (r, c)
+            if ch == '#': walls.add((r, c))
+            
+    return start, goal, walls, len(grid), len(grid[0])
+
+
+def make_grid_problem(grid):
+    start, goal, walls, rows, cols = parse_grid(grid)
+    
+    def get_actions(state):
+        r, c = state 
+        return [
+            action for action, (dr, dc) in DIRECTIONS.items()
+            if 0 <= r + dr < rows and 0 <= c + dc < cols 
+            and (r + dr, c + dc) not in walls
+        ]
+
+    def transition(state, action): 
+        dr, dc = DIRECTIONS[action]
+        return (state[0] + dr, state[1] + dc)
+
+    def get_inverse_actions(state):
+        r, c = state 
+        valid = []
+        
+        for action in DIRECTIONS:
+            dr, dc = DIRECTIONS[INVERSE[action]]
+            pr, pc = r + dr, c + dc 
+            if 0 <= pr < rows and 0 <= pc < cols and (pr, pc) not in walls: 
+                valid.append(action)
+        return valid
+    
+    def inverse_transition(state, action):
+        dr, dc = DIRECTIONS[INVERSE[action]]
+        return (state[0] + dr, state[1] + dc)
+    
+    return start, goal, get_actions, transition, get_inverse_actions, inverse_transition
+
+
+def print_solution(grid, plan, label):
+    if plan is None: 
+        print(f"{label}: No plan found.")
+        return
+    
+    path_states = {state for state, _ in plan }
+    print(f"\n{label} — {len(plan)} steps:\n")
+
+    for r, row in enumerate(grid):
+        for c, ch in enumerate(row):
+            if ch in ('S', 'G', '#'):
+                line += ch 
+            elif (r, c) in path_states:
+                line += "*"
+            else: 
+                line += ch 
+        print(" ", line)
+    print() 
+    
+    for i, (state, action) in enumerate(plan, 1):
+        print(f"  step {i:2d}: move {action:5s}  -> {state}")
+            
+if __name__ == "__main__":
+    
