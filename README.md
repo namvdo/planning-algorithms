@@ -56,15 +56,16 @@ npx playwright test
 
 ## Deploy
 
-This is not a pure GitHub Pages application. GitHub Pages can serve only the static frontend, while the full explorer needs the Python FastAPI backend for trace generation, live Python3 execution, and judging.
+The default deployment target is Vercel. The repository includes `vercel.json`, a Python Function entrypoint in `api/index.py`, and a root `requirements.txt` that points to the FastAPI backend dependencies.
 
-For a DigitalOcean Droplet, use the included Docker Compose deployment:
+Deploy from the repository root:
 
 ```bash
-APP_PORT=80 docker compose up -d --build
+vercel
+vercel --prod
 ```
 
-The Compose stack builds the Vite frontend, serves it with Nginx, proxies `/api/` to FastAPI, and keeps the backend private on the Docker network. See `docs/deployment.md` for setup notes, port choices, and code-execution safety limits.
+Vercel builds `frontend/dist` and routes `/api/*` to the FastAPI app. See `docs/deployment.md` for setup notes, limitations, and the live-code execution safety warning.
 
 ## Current MVP
 
