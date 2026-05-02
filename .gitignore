@@ -1,0 +1,14 @@
+instruction.md
+
+__pycache__/
+.pytest_cache/
+.venv/
+.ruff_cache/
+
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+
+.DS_Store

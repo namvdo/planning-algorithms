@@ -1,0 +1,10 @@
+.git/
+**/__pycache__/
+**/.pytest_cache/
+**/.venv/
+**/node_modules/
+**/dist/
+**/test-results/
+**/playwright-report/
+**/*.tsbuildinfo
+.DS_Store
