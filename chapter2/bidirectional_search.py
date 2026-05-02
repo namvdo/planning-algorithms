@@ -105,7 +105,7 @@ def _build_plan(fwd_parent, bwd_parent, x_init, x_mid, x_goal):
         fwd_half.append((state, action))
         state = prev 
         
-    fwd_parent.reverse() 
+    fwd_half.reverse() 
     
     
     bwd_half = []
@@ -127,7 +127,7 @@ GRID = [
 
 
 def parse_grid(grid):
-    start, goal = None 
+    start = goal = None 
     walls = set() 
     for r, row in enumerate(grid):
         for c, ch in enumerate(row):
@@ -180,6 +180,7 @@ def print_solution(grid, plan, label):
     print(f"\n{label} — {len(plan)} steps:\n")
 
     for r, row in enumerate(grid):
+        line = ""
         for c, ch in enumerate(row):
             if ch in ('S', 'G', '#'):
                 line += ch 
@@ -194,4 +195,69 @@ def print_solution(grid, plan, label):
         print(f"  step {i:2d}: move {action:5s}  -> {state}")
             
 if __name__ == "__main__":
+    from collections import deque as _deque
+
+    start, goal, get_actions, transition, get_inv_actions, inv_transition = make_grid_problem(GRID)
+    print("Grid: ")
+    for row in GRID:
+        print(" ", row)
+        
+    def forward_search(x_init, is_goal, get_actions, transition):
+        queue = _deque([x_init])
+        visited = {x_init}
+        parent = {x_init: (None, None)}
+        
+        while queue:
+            x = queue.popleft() 
+            if is_goal(x):
+                plan, state = [], x 
+                while parent[state][0] is not None: 
+                    prev, action = parent[state]
+                    plan.append((prev, action))
+                    state = prev 
+                plan.reverse() 
+                return plan 
+            for u in get_actions(x):
+                x_next = transition(x, u) 
+                if x_next not in visited: 
+                    visited.add(x_next)
+                    parent[x_next] = (x, u)
+                    queue.append(x_next)
+        return None 
+    
+    def backward_search(x_init, x_goal, get_inv, inv_trans):
+        queue = _deque([x_goal])
+        visited = {x_goal}
+        parent = {x_goal: (None, None)}
+        
+        while queue:
+            x = queue.popleft()
+            if x == x_init: 
+                plan, state = [], x_init 
+                while parent[state][0] is not None: 
+                    ns, action = parent[state]
+                    plan.append((ns, action))
+                    state = ns 
+                return plan
+            
+            for u in get_inv(x):
+                x_prev = inv_trans(x, u)
+                if x_prev not in visited:
+                    visited.add(x_prev)
+                    parent[x_prev] = (x, u)
+                    queue.append(x_prev)
+                    
+        return None 
+    
+    fwd_plan = forward_search(start, lambda x: x == goal, get_actions, transition)
+    bwd_plan = backward_search(start, goal, get_inv_actions, inv_transition)
+    
+    bid_plan = bidirectional_search(
+        start, goal, get_actions, transition, get_inv_actions, inv_transition
+    )
+    
+    print_solution(GRID, fwd_plan, "Forward search ")
+    print_solution(GRID, bwd_plan, "Backward search")
+    print_solution(GRID, bid_plan, "Bidirectional  ")
+    
     
