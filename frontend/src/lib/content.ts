@@ -82,7 +82,7 @@ V_F \leftarrow \{x_I\},\quad V_B \leftarrow \{x_G\}\\
 
 export const plannedTopics = ["Dijkstra", "A*", "Value iteration", "STRIPS", "Planning graph", "SAT planning"];
 
-export const defaultGrid = `S.....#.
-.####...
-....#..G
-..#.....`;
+export const defaultGrid = `S.....#......
+.####....#...
+....#....#..G
+..#..........`;
