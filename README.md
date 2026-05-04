@@ -1,6 +1,8 @@
 # Planning Algorithms Explorer
 
-An interactive web application for learning and visualizing algorithms from Steven M. LaValle's *Planning Algorithms*. The first milestone focuses on Chapter 2, discrete planning, with forward search, backward search, and bidirectional search on editable grid worlds.
+An interactive web application for learning and visualizing algorithms from Steven M. LaValle's _Planning Algorithms_. The first milestone focuses on Chapter 2, discrete planning, with forward search, backward search, and bidirectional search on editable grid worlds.
+
+![Planning Explorer Interface](docs/planning-explorer-interface.png)
 
 The project is intentionally small and direct:
 
