@@ -15,11 +15,7 @@ export function GridVisualization({ result, frame, gridText }: Props) {
   const path = new Set((frame?.plan_prefix ?? []).map(keyOf));
   const visited = new Set((frame?.visited ?? []).map(keyOf));
   const backwardVisited = new Set((frame?.backward_visited ?? []).map(keyOf));
-  const frontier = new Set((frame?.frontier ?? []).map(keyOf));
-  const backwardFrontier = new Set((frame?.backward_frontier ?? []).map(keyOf));
-  const discovered = new Set((frame?.discovered ?? []).map(keyOf));
-  const current = frame?.current ? keyOf(frame.current) : null;
-  const meeting = frame?.meeting_state ? keyOf(frame.meeting_state) : null;
+  const totalVisited = new Set([...visited, ...backwardVisited]);
 
   return (
     <div className="visualization-panel">
@@ -39,38 +35,72 @@ export function GridVisualization({ result, frame, gridText }: Props) {
             const state = { row, col };
             const key = keyOf(state);
             const char = rows[row]?.[col] ?? ".";
+            const inVisited = totalVisited.has(key);
+            const inPath = path.has(key);
             const classes = [
               "cell",
               char === "#" ? "wall" : "",
-              visited.has(key) ? "visited" : "",
-              backwardVisited.has(key) ? "backward-visited" : "",
-              frontier.has(key) || backwardFrontier.has(key) ? "frontier" : "",
-              discovered.has(key) ? "discovered" : "",
-              path.has(key) ? "path" : "",
-              current === key ? "current" : "",
-              meeting === key ? "meeting" : "",
+              inVisited ? "visited" : "",
+              inPath ? "path" : "",
             ]
               .filter(Boolean)
               .join(" ");
+            const labels = [
+              char === "S" ? "Start" : "",
+              char === "G" ? "Goal" : "",
+              char === "#" ? "Wall" : "",
+              inVisited ? "Visited" : "",
+              inPath ? "Plan path" : "",
+            ]
+              .filter(Boolean)
+              .join(", ");
 
             return (
               <g key={key}>
                 <rect className={classes} x={col * CELL + 1} y={row * CELL + 1} width={CELL - 2} height={CELL - 2} rx="4" />
-                {char === "S" || char === "G" ? (
-                  <text className="cell-label" x={col * CELL + CELL / 2} y={row * CELL + CELL / 2 + 5} textAnchor="middle">
-                    {char}
-                  </text>
+                {inVisited && !inPath && char !== "#" ? (
+                  <circle
+                    className="visited-marker"
+                    data-testid="visited-marker"
+                    cx={col * CELL + CELL - 10}
+                    cy={row * CELL + 10}
+                    r="4.5"
+                  />
                 ) : null}
+                <title>{`(${row}, ${col})${labels ? `: ${labels}` : ""}`}</title>
               </g>
+            );
+          }),
+        )}
+        {Array.from({ length: rowCount }).flatMap((_, row) =>
+          Array.from({ length: colCount }).map((__, col) => {
+            const char = rows[row]?.[col] ?? ".";
+            if (char !== "S" && char !== "G") {
+              return null;
+            }
+            return (
+              <text key={`label-${row}-${col}`} className="cell-label" x={col * CELL + CELL / 2} y={row * CELL + CELL / 2 + 5} textAnchor="middle">
+                {char}
+              </text>
             );
           }),
         )}
       </svg>
       <div className="legend" aria-label="Visualization legend">
-        <span><i className="swatch visited" /> Forward visited</span>
-        <span><i className="swatch backward" /> Backward visited</span>
-        <span><i className="swatch frontier" /> Frontier</span>
-        <span><i className="swatch path" /> Plan</span>
+        <span>
+          <i className="legend-chip visited-node">
+            <i className="legend-visit-dot" />
+          </i>
+          Visited nodes
+        </span>
+        <span>
+          <i className="legend-chip solution-path" />
+          Solution path
+        </span>
+      </div>
+      <div className="frame-metrics" aria-label="Current frame metrics">
+        <span><strong>{totalVisited.size}</strong> visited nodes</span>
+        <span><strong>{path.size}</strong> path nodes</span>
       </div>
       <p className="frame-message">{frame?.message ?? "Run an algorithm to create a trace."}</p>
     </div>
@@ -80,4 +110,3 @@ export function GridVisualization({ result, frame, gridText }: Props) {
 function keyOf(state: State): string {
   return `${state.row},${state.col}`;
 }
-

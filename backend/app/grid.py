@@ -22,7 +22,6 @@ INVERSE: dict[Action, Action] = {
     "right": "left",
 }
 
-
 @dataclass(frozen=True)
 class GridProblem:
     grid: tuple[str, ...]

@@ -26,7 +26,7 @@ The request includes an algorithm name and a grid. The response includes:
 
 - status: found or not found
 - plan: executable forward action sequence
-- trace: ordered frames for visualization
+- trace: ordered frames for visualization, including visited sets, frontiers, and search-tree edges
 - stats: expanded count, visited count, maximum frontier size, path length, trace length
 
 The live-code endpoints are:
@@ -37,7 +37,7 @@ POST /api/chapter2/code/evaluate
 POST /api/chapter2/code/visualize
 ```
 
-The default-code endpoint returns the editable Python3 implementation for the selected algorithm. The visualization endpoint executes the submitted code, validates the current-grid action sequence, and returns a trace for the frontend. The evaluation endpoint runs the same submitted code against the current grid plus fixed judge cases.
+The default-code endpoint returns the editable Python3 implementation for the selected algorithm. The visualization endpoint executes the submitted code, validates the current-grid action sequence, and returns a trace for the frontend. Default implementations return a dictionary with `actions` and `trace`; the trace records BFS frontier snapshots and parent-discovery edges. The runner still accepts a plain action list for learner code, but action-only submissions can only produce a path visualization. The evaluation endpoint runs the same submitted code against the current grid plus fixed judge cases.
 
 The current judge is appropriate for local educational use. It is not a security boundary for arbitrary public users.
 
@@ -64,7 +64,7 @@ The visualization is SVG-based because the state space is a grid and the visual 
 2. The frontend validates simple grid shape errors.
 3. The frontend posts the grid, algorithm, and exact editor code to the backend.
 4. The backend executes the submitted code with a timeout and validates the returned action sequence.
-5. The backend returns a trace generated from the submitted code's returned actions.
+5. The backend returns submitted trace frames when provided, or a path-only trace when the submitted code returns only actions.
 6. The frontend renders any trace frame without rerunning the algorithm.
 
 For live coding:
@@ -74,6 +74,10 @@ For live coding:
 3. The backend runs that exact code in the judge process.
 4. The judge checks whether the returned actions are valid, shortest for the unweighted cases, and correct on no-path cases.
 5. The frontend shows per-case pass/fail feedback.
+
+## Trace Model
+
+Each `TraceFrame` records the state of one expansion step. Forward search stores `visited`, `frontier`, and `forward_tree_edges`. Backward search stores `backward_visited`, `backward_frontier`, and `backward_tree_edges`. Bidirectional search fills both sides. The tree edges come from parent-pointer discoveries, so they show the explored BFS tree, while `plan_prefix` highlights the final path after a solution is reconstructed.
 
 ## Development Workflow
 

@@ -26,6 +26,8 @@ const traceResponse = {
       visited: [{ row: 0, col: 0 }],
       backward_frontier: [],
       backward_visited: [],
+      forward_tree_edges: [],
+      backward_tree_edges: [],
       discovered: [],
       meeting_state: null,
       plan_prefix: [],
@@ -43,6 +45,11 @@ const traceResponse = {
       ],
       backward_frontier: [],
       backward_visited: [],
+      forward_tree_edges: [
+        { from_state: { row: 0, col: 0 }, to_state: { row: 0, col: 1 }, action: "right" },
+        { from_state: { row: 0, col: 1 }, to_state: { row: 0, col: 2 }, action: "right" },
+      ],
+      backward_tree_edges: [],
       discovered: [],
       meeting_state: null,
       plan_prefix: [
@@ -141,9 +148,15 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^Reset$/i }));
     expect(screen.getByText("Frame 1 of 2")).toBeInTheDocument();
+    expect(screen.getByLabelText("Current frame metrics")).toHaveTextContent("1 visited nodes");
+    expect(screen.getByLabelText("Current frame metrics")).toHaveTextContent("0 path nodes");
+    expect(screen.getAllByTestId("visited-marker")).toHaveLength(1);
 
     fireEvent.click(screen.getByLabelText("Next frame"));
     expect(screen.getByText("Frame 2 of 2")).toBeInTheDocument();
+    expect(screen.getByLabelText("Current frame metrics")).toHaveTextContent("3 visited nodes");
+    expect(screen.getByLabelText("Current frame metrics")).toHaveTextContent("3 path nodes");
+    expect(screen.queryByTestId("visited-marker")).not.toBeInTheDocument();
   });
 
   it("renders stats and complexity content", async () => {

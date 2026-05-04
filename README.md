@@ -75,7 +75,7 @@ The current application implements a Chapter 2 workbench:
 - edit a grid with `S`, `G`, `.`, and `#`
 - run the exact Python3 code currently in the live editor
 - inspect the returned trace frame by frame
-- compare visited sets, frontier states, current expansion, meeting state, and final plan
+- compare the explored visited nodes against the final plan
 - read short explanations, complexity notes, LaTeX-rendered pseudocode, and source citations
 - edit the selected Python3 algorithm implementation and run it through the local judge
 
@@ -83,7 +83,7 @@ The Python backend is the source of truth for execution and judging. The fronten
 
 ## Live Code Evaluation
 
-The live editor sends the exact Python3 code in the editor to the backend. The visualization run uses that code, validates the returned action sequence, and renders the resulting path. The separate judge button evaluates the same code on the current grid plus fixed cases.
+The live editor sends the exact Python3 code in the editor to the backend. The visualization run uses that code and validates the returned action sequence. Default implementations also return trace frames with visited sets, frontiers, and search-tree edges, so the visualization can show the full explored BFS tree. User edits can still return a plain action list, but then the app can only visualize the returned path.
 
 If an edit breaks the algorithm, the visualization run reports the failure and keeps the previous trace. Use `Reset code` to restore the default implementation, then run the visualization again.
 

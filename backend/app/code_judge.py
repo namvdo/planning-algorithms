@@ -20,6 +20,7 @@ from app.models import (
     SearchResponse,
     SearchStats,
     SearchStatus,
+    SearchTreeEdge,
     State,
     TraceFrame,
 )
@@ -121,6 +122,15 @@ def normalize_plan(raw_plan):
     return actions
 
 
+def normalize_result(raw_result):
+    if isinstance(raw_result, dict):
+        return {
+            "actions": normalize_plan(raw_result.get("actions")),
+            "trace": raw_result.get("trace"),
+        }
+    return {"actions": normalize_plan(raw_result), "trace": None}
+
+
 def execute_case(module, algorithm, grid):
     problem = make_problem(grid)
     if algorithm == "forward":
@@ -139,7 +149,7 @@ def execute_case(module, algorithm, grid):
             problem["get_inverse_actions"],
             problem["inverse_transition"],
         )
-    return normalize_plan(raw_plan)
+    return normalize_result(raw_plan)
 
 
 def main():
@@ -152,8 +162,8 @@ def main():
     outputs = []
     for case in payload["cases"]:
         try:
-            actions = execute_case(module, payload["algorithm"], case["grid"])
-            outputs.append({"name": case["name"], "actions": actions, "error": None})
+            result = execute_case(module, payload["algorithm"], case["grid"])
+            outputs.append({"name": case["name"], "actions": result["actions"], "trace": result["trace"], "error": None})
         except Exception:
             outputs.append({"name": case["name"], "actions": None, "error": traceback.format_exc(limit=5)})
     print(json.dumps({"outputs": outputs}))
@@ -289,6 +299,7 @@ def visualize_code(
         algorithm=algorithm,
         problem=problem,
         actions=output.get("actions"),
+        trace_payload=output.get("trace"),
         duration_ms=duration_ms,
         stdout=stdout,
     )
@@ -350,6 +361,7 @@ def _search_response_from_actions(
     algorithm: SearchAlgorithm,
     problem: GridProblem,
     actions: list[str] | None,
+    trace_payload: list[dict] | None,
     duration_ms: int,
     stdout: str,
 ) -> SearchResponse:
@@ -376,9 +388,13 @@ def _search_response_from_actions(
             stats=SearchStats(expanded_count=0, visited_count=1, max_frontier_size=0, path_length=None, trace_length=1),
         )
 
+    steps, _ = _plan_steps_from_actions(problem, actions)
+    traced_response = _search_response_from_submitted_trace(algorithm, problem, actions, trace_payload, steps)
+    if traced_response is not None:
+        return traced_response
+
     state = problem.start
     visited = [state]
-    steps: list[PlanStep] = []
     trace = [
         TraceFrame(
             index=0,
@@ -391,18 +407,9 @@ def _search_response_from_actions(
     ]
 
     for index, action in enumerate(actions, start=1):
-        previous = state
         dr, dc = DIRECTIONS[action]  # type: ignore[index]
         state = (state[0] + dr, state[1] + dc)
         visited.append(state)
-        steps.append(
-            PlanStep(
-                index=index,
-                from_state=State(row=previous[0], col=previous[1]),
-                to_state=State(row=state[0], col=state[1]),
-                action=action,
-            )
-        )
         trace.append(
             TraceFrame(
                 index=index,
@@ -445,8 +452,130 @@ def _search_response_from_actions(
     )
 
 
+def _search_response_from_submitted_trace(
+    algorithm: SearchAlgorithm,
+    problem: GridProblem,
+    actions: list[str],
+    trace_payload: list[dict] | None,
+    steps: list[PlanStep],
+) -> SearchResponse | None:
+    if not trace_payload:
+        return None
+
+    try:
+        trace = [_trace_frame_from_payload(index, raw_frame) for index, raw_frame in enumerate(trace_payload)]
+    except (TypeError, ValueError, KeyError):
+        return None
+
+    visited_states = {
+        (state.row, state.col)
+        for frame in trace
+        for state in [*frame.visited, *frame.backward_visited]
+    }
+    max_frontier_size = max((len(frame.frontier) + len(frame.backward_frontier) for frame in trace), default=0)
+
+    return SearchResponse(
+        algorithm=algorithm,
+        status=SearchStatus.FOUND,
+        start=State(row=problem.start[0], col=problem.start[1]),
+        goal=State(row=problem.goal[0], col=problem.goal[1]),
+        rows=problem.rows,
+        cols=problem.cols,
+        plan=steps,
+        trace=trace,
+        stats=SearchStats(
+            expanded_count=max(len(trace) - 1, len(actions)),
+            visited_count=len(visited_states),
+            max_frontier_size=max_frontier_size,
+            path_length=len(actions),
+            trace_length=len(trace),
+        ),
+    )
+
+
+def _trace_frame_from_payload(index: int, raw_frame: dict) -> TraceFrame:
+    return TraceFrame(
+        index=index,
+        phase=str(raw_frame.get("phase", "submitted-code")),
+        message=str(raw_frame.get("message", "Submitted code trace frame.")),
+        current=_state_from_payload(raw_frame.get("current")),
+        frontier=_states_from_payload(raw_frame.get("frontier", [])),
+        visited=_states_from_payload(raw_frame.get("visited", [])),
+        backward_frontier=_states_from_payload(raw_frame.get("backward_frontier", [])),
+        backward_visited=_states_from_payload(raw_frame.get("backward_visited", [])),
+        forward_tree_edges=_tree_edges_from_payload(raw_frame.get("forward_tree_edges", [])),
+        backward_tree_edges=_tree_edges_from_payload(raw_frame.get("backward_tree_edges", [])),
+        discovered=_states_from_payload(raw_frame.get("discovered", [])),
+        meeting_state=_state_from_payload(raw_frame.get("meeting_state")),
+        plan_prefix=_states_from_payload(raw_frame.get("plan_prefix", [])),
+    )
+
+
+def _plan_steps_from_actions(problem: GridProblem, actions: list[str]) -> tuple[list[PlanStep], list[tuple[int, int]]]:
+    state = problem.start
+    states = [state]
+    steps = []
+    for index, action in enumerate(actions, start=1):
+        previous = state
+        dr, dc = DIRECTIONS[action]  # type: ignore[index]
+        state = (state[0] + dr, state[1] + dc)
+        states.append(state)
+        steps.append(
+            PlanStep(
+                index=index,
+                from_state=State(row=previous[0], col=previous[1]),
+                to_state=State(row=state[0], col=state[1]),
+                action=action,
+            )
+        )
+    return steps, states
+
+
 def _states(states: list[tuple[int, int]]) -> list[State]:
     return [State(row=row, col=col) for row, col in states]
+
+
+def _state_from_payload(value: object) -> State | None:
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return State(row=int(value["row"]), col=int(value["col"]))
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        return State(row=int(value[0]), col=int(value[1]))
+    raise ValueError("State payload must be a row/col object or pair.")
+
+
+def _states_from_payload(values: object) -> list[State]:
+    if not isinstance(values, list):
+        raise ValueError("State list payload must be a list.")
+    states = []
+    for value in values:
+        state = _state_from_payload(value)
+        if state is not None:
+            states.append(state)
+    return states
+
+
+def _tree_edges_from_payload(values: object) -> list[SearchTreeEdge]:
+    if not isinstance(values, list):
+        raise ValueError("Tree edge payload must be a list.")
+
+    edges = []
+    for value in values:
+        if isinstance(value, dict):
+            start = _state_from_payload(value["from_state"])
+            end = _state_from_payload(value["to_state"])
+            action = str(value["action"])
+        elif isinstance(value, (list, tuple)) and len(value) == 3:
+            start = _state_from_payload(value[0])
+            end = _state_from_payload(value[1])
+            action = str(value[2])
+        else:
+            raise ValueError("Tree edge must be an object or (from, to, action) tuple.")
+        if start is None or end is None:
+            raise ValueError("Tree edge endpoints cannot be None.")
+        edges.append(SearchTreeEdge(from_state=start, to_state=end, action=action))
+    return edges
 
 
 def _build_cases(
@@ -551,20 +680,49 @@ def default_algorithm_code(algorithm: SearchAlgorithm) -> str:
                 queue = deque([x_init])
                 visited = {x_init}
                 parent = {x_init: (None, None)}
+                tree_edges = []
+                trace = []
+
+                append_frame(trace, "forward", "Initialize the frontier with the start state.", queue, visited, tree_edges)
 
                 while queue:
                     state = queue.popleft()
                     if is_goal(state):
-                        return extract_actions(parent, state)
+                        actions = extract_actions(parent, state)
+                        append_frame(
+                            trace,
+                            "complete",
+                            "Goal reached. Reconstruct the plan from parent pointers.",
+                            queue,
+                            visited,
+                            tree_edges,
+                            current=state,
+                            plan_prefix=states_from_actions(x_init, actions, transition),
+                        )
+                        return {"actions": actions, "trace": trace}
 
+                    discovered = []
                     for action in get_actions(state):
                         next_state = transition(state, action)
                         if next_state not in visited:
                             visited.add(next_state)
                             parent[next_state] = (state, action)
+                            tree_edges.append((state, next_state, action))
                             queue.append(next_state)
+                            discovered.append(next_state)
 
-                return None
+                    append_frame(
+                        trace,
+                        "forward",
+                        f"Expand {state} and add {len(discovered)} unvisited successor state(s).",
+                        queue,
+                        visited,
+                        tree_edges,
+                        current=state,
+                        discovered=discovered,
+                    )
+
+                return {"actions": None, "trace": trace}
 
 
             def extract_actions(parent, goal):
@@ -576,6 +734,40 @@ def default_algorithm_code(algorithm: SearchAlgorithm) -> str:
                     state = previous
                 actions.reverse()
                 return actions
+
+
+            def states_from_actions(start, actions, transition):
+                states = [start]
+                state = start
+                for action in actions:
+                    state = transition(state, action)
+                    states.append(state)
+                return states
+
+
+            def append_frame(
+                trace,
+                phase,
+                message,
+                queue,
+                visited,
+                tree_edges,
+                current=None,
+                discovered=None,
+                plan_prefix=None,
+            ):
+                trace.append(
+                    {
+                        "phase": phase,
+                        "message": message,
+                        "current": current,
+                        "frontier": list(queue),
+                        "visited": sorted(visited),
+                        "forward_tree_edges": list(tree_edges),
+                        "discovered": discovered or [],
+                        "plan_prefix": plan_prefix or [],
+                    }
+                )
             """
         ).strip()
     if algorithm == SearchAlgorithm.BACKWARD:
@@ -588,20 +780,49 @@ def default_algorithm_code(algorithm: SearchAlgorithm) -> str:
                 queue = deque([x_goal])
                 visited = {x_goal}
                 parent = {x_goal: (None, None)}
+                tree_edges = []
+                trace = []
+
+                append_frame(trace, "backward", "Initialize the frontier with the goal state.", queue, visited, tree_edges)
 
                 while queue:
                     state = queue.popleft()
                     if state == x_init:
-                        return extract_actions(parent, x_init, x_goal)
+                        actions = extract_actions(parent, x_init, x_goal)
+                        append_frame(
+                            trace,
+                            "complete",
+                            "Start reached by reverse expansion. Read stored forward actions.",
+                            queue,
+                            visited,
+                            tree_edges,
+                            current=state,
+                            plan_prefix=states_from_actions(x_init, actions),
+                        )
+                        return {"actions": actions, "trace": trace}
 
+                    discovered = []
                     for action in get_inverse_actions(state):
                         previous = inverse_transition(state, action)
                         if previous not in visited:
                             visited.add(previous)
                             parent[previous] = (state, action)
+                            tree_edges.append((previous, state, action))
                             queue.append(previous)
+                            discovered.append(previous)
 
-                return None
+                    append_frame(
+                        trace,
+                        "backward",
+                        f"Reverse-expand {state} and add {len(discovered)} predecessor state(s).",
+                        queue,
+                        visited,
+                        tree_edges,
+                        current=state,
+                        discovered=discovered,
+                    )
+
+                return {"actions": None, "trace": trace}
 
 
             def extract_actions(parent, start, goal):
@@ -612,6 +833,42 @@ def default_algorithm_code(algorithm: SearchAlgorithm) -> str:
                     actions.append(action)
                     state = next_state
                 return actions
+
+
+            def states_from_actions(start, actions):
+                deltas = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}
+                states = [start]
+                state = start
+                for action in actions:
+                    dr, dc = deltas[action]
+                    state = (state[0] + dr, state[1] + dc)
+                    states.append(state)
+                return states
+
+
+            def append_frame(
+                trace,
+                phase,
+                message,
+                queue,
+                visited,
+                tree_edges,
+                current=None,
+                discovered=None,
+                plan_prefix=None,
+            ):
+                trace.append(
+                    {
+                        "phase": phase,
+                        "message": message,
+                        "current": current,
+                        "backward_frontier": list(queue),
+                        "backward_visited": sorted(visited),
+                        "backward_tree_edges": list(tree_edges),
+                        "discovered": discovered or [],
+                        "plan_prefix": plan_prefix or [],
+                    }
+                )
             """
         ).strip()
     return textwrap.dedent(
@@ -636,48 +893,225 @@ def default_algorithm_code(algorithm: SearchAlgorithm) -> str:
             b_seen = {x_goal}
             f_parent = {x_init: (None, None)}
             b_parent = {x_goal: (None, None)}
+            f_edges = []
+            b_edges = []
+            trace = []
+
+            append_frame(
+                trace,
+                "bidirectional",
+                "Initialize one frontier at the start and one frontier at the goal.",
+                f_queue,
+                f_seen,
+                b_queue,
+                b_seen,
+                f_edges,
+                b_edges,
+            )
 
             while f_queue or b_queue:
                 if f_queue:
-                    meeting = expand_forward(f_queue, f_seen, f_parent, b_seen, get_actions, transition)
+                    meeting = expand_forward(
+                        f_queue,
+                        f_seen,
+                        f_parent,
+                        b_seen,
+                        f_edges,
+                        trace,
+                        b_queue,
+                        b_seen,
+                        b_edges,
+                        get_actions,
+                        transition,
+                    )
                     if meeting is not None:
-                        return join_plan(f_parent, b_parent, x_init, meeting, x_goal)
+                        actions = join_plan(f_parent, b_parent, x_init, meeting, x_goal)
+                        append_frame(
+                            trace,
+                            "complete",
+                            f"Frontiers meet at {meeting}. Join both parent maps into one plan.",
+                            f_queue,
+                            f_seen,
+                            b_queue,
+                            b_seen,
+                            f_edges,
+                            b_edges,
+                            meeting_state=meeting,
+                            plan_prefix=states_from_actions(x_init, actions),
+                        )
+                        return {"actions": actions, "trace": trace}
 
                 if b_queue:
-                    meeting = expand_backward(b_queue, b_seen, b_parent, f_seen, get_inverse_actions, inverse_transition)
+                    meeting = expand_backward(
+                        b_queue,
+                        b_seen,
+                        b_parent,
+                        f_seen,
+                        b_edges,
+                        trace,
+                        f_queue,
+                        f_seen,
+                        f_edges,
+                        get_inverse_actions,
+                        inverse_transition,
+                    )
                     if meeting is not None:
-                        return join_plan(f_parent, b_parent, x_init, meeting, x_goal)
+                        actions = join_plan(f_parent, b_parent, x_init, meeting, x_goal)
+                        append_frame(
+                            trace,
+                            "complete",
+                            f"Frontiers meet at {meeting}. Join both parent maps into one plan.",
+                            f_queue,
+                            f_seen,
+                            b_queue,
+                            b_seen,
+                            f_edges,
+                            b_edges,
+                            meeting_state=meeting,
+                            plan_prefix=states_from_actions(x_init, actions),
+                        )
+                        return {"actions": actions, "trace": trace}
 
-            return None
+            return {"actions": None, "trace": trace}
 
 
-        def expand_forward(queue, seen, parent, other_seen, get_actions, transition):
+        def expand_forward(
+            queue,
+            seen,
+            parent,
+            other_seen,
+            tree_edges,
+            trace,
+            backward_queue,
+            backward_seen,
+            backward_edges,
+            get_actions,
+            transition,
+        ):
             state = queue.popleft()
+            discovered = []
             if state in other_seen:
+                append_frame(
+                    trace,
+                    "forward",
+                    f"Forward side expands {state}.",
+                    queue,
+                    seen,
+                    backward_queue,
+                    backward_seen,
+                    tree_edges,
+                    backward_edges,
+                    current=state,
+                    meeting_state=state,
+                )
                 return state
             for action in get_actions(state):
                 next_state = transition(state, action)
                 if next_state not in seen:
                     seen.add(next_state)
                     parent[next_state] = (state, action)
+                    tree_edges.append((state, next_state, action))
                     queue.append(next_state)
+                    discovered.append(next_state)
                     if next_state in other_seen:
+                        append_frame(
+                            trace,
+                            "forward",
+                            f"Forward side expands {state}.",
+                            queue,
+                            seen,
+                            backward_queue,
+                            backward_seen,
+                            tree_edges,
+                            backward_edges,
+                            current=state,
+                            discovered=discovered,
+                            meeting_state=next_state,
+                        )
                         return next_state
+            append_frame(
+                trace,
+                "forward",
+                f"Forward side expands {state}.",
+                queue,
+                seen,
+                backward_queue,
+                backward_seen,
+                tree_edges,
+                backward_edges,
+                current=state,
+                discovered=discovered,
+            )
             return None
 
 
-        def expand_backward(queue, seen, parent, other_seen, get_inverse_actions, inverse_transition):
+        def expand_backward(
+            queue,
+            seen,
+            parent,
+            other_seen,
+            tree_edges,
+            trace,
+            forward_queue,
+            forward_seen,
+            forward_edges,
+            get_inverse_actions,
+            inverse_transition,
+        ):
             state = queue.popleft()
+            discovered = []
             if state in other_seen:
+                append_frame(
+                    trace,
+                    "backward",
+                    f"Backward side reverse-expands {state}.",
+                    forward_queue,
+                    forward_seen,
+                    queue,
+                    seen,
+                    forward_edges,
+                    tree_edges,
+                    current=state,
+                    meeting_state=state,
+                )
                 return state
             for action in get_inverse_actions(state):
                 previous = inverse_transition(state, action)
                 if previous not in seen:
                     seen.add(previous)
                     parent[previous] = (state, action)
+                    tree_edges.append((previous, state, action))
                     queue.append(previous)
+                    discovered.append(previous)
                     if previous in other_seen:
+                        append_frame(
+                            trace,
+                            "backward",
+                            f"Backward side reverse-expands {state}.",
+                            forward_queue,
+                            forward_seen,
+                            queue,
+                            seen,
+                            forward_edges,
+                            tree_edges,
+                            current=state,
+                            discovered=discovered,
+                            meeting_state=previous,
+                        )
                         return previous
+            append_frame(
+                trace,
+                "backward",
+                f"Backward side reverse-expands {state}.",
+                forward_queue,
+                forward_seen,
+                queue,
+                seen,
+                forward_edges,
+                tree_edges,
+                current=state,
+                discovered=discovered,
+            )
             return None
 
 
@@ -704,5 +1138,49 @@ def default_algorithm_code(algorithm: SearchAlgorithm) -> str:
 
         def join_plan(f_parent, b_parent, start, meeting, goal):
             return actions_from_forward(f_parent, start, meeting) + actions_from_backward(b_parent, meeting, goal)
+
+
+        def states_from_actions(start, actions):
+            deltas = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}
+            states = [start]
+            state = start
+            for action in actions:
+                dr, dc = deltas[action]
+                state = (state[0] + dr, state[1] + dc)
+                states.append(state)
+            return states
+
+
+        def append_frame(
+            trace,
+            phase,
+            message,
+            forward_queue,
+            forward_seen,
+            backward_queue,
+            backward_seen,
+            forward_edges,
+            backward_edges,
+            current=None,
+            discovered=None,
+            meeting_state=None,
+            plan_prefix=None,
+        ):
+            trace.append(
+                {
+                    "phase": phase,
+                    "message": message,
+                    "current": current,
+                    "frontier": list(forward_queue),
+                    "visited": sorted(forward_seen),
+                    "backward_frontier": list(backward_queue),
+                    "backward_visited": sorted(backward_seen),
+                    "forward_tree_edges": list(forward_edges),
+                    "backward_tree_edges": list(backward_edges),
+                    "discovered": discovered or [],
+                    "meeting_state": meeting_state,
+                    "plan_prefix": plan_prefix or [],
+                }
+            )
         """
     ).strip()

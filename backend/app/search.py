@@ -8,11 +8,13 @@ from app.models import (
     SearchResponse,
     SearchStats,
     SearchStatus,
+    SearchTreeEdge,
     State,
     TraceFrame,
 )
 
 ParentMap = dict[GridState, tuple[GridState | None, Action | None]]
+TreeEdges = list[tuple[GridState, GridState, Action]]
 
 
 def run_search(problem: GridProblem, algorithm: SearchAlgorithm) -> SearchResponse:
@@ -27,11 +29,12 @@ def _forward_search(problem: GridProblem) -> SearchResponse:
     queue: deque[GridState] = deque([problem.start])
     visited: set[GridState] = {problem.start}
     parent: ParentMap = {problem.start: (None, None)}
+    tree_edges: TreeEdges = []
     trace: list[TraceFrame] = []
     expanded_count = 0
     max_frontier = 1
 
-    _append_frame(trace, "forward", "Initialize the frontier with the start state.", queue, visited)
+    _append_frame(trace, "forward", "Initialize the frontier with the start state.", queue, visited, forward_tree_edges=tree_edges)
 
     while queue:
         current = queue.popleft()
@@ -47,6 +50,7 @@ def _forward_search(problem: GridProblem) -> SearchResponse:
                 queue,
                 visited,
                 current=current,
+                forward_tree_edges=tree_edges,
                 plan_prefix=_states_from_plan(problem.start, plan),
             )
             return _response(problem, SearchAlgorithm.FORWARD, plan, trace, expanded_count, len(visited), max_frontier)
@@ -56,6 +60,7 @@ def _forward_search(problem: GridProblem) -> SearchResponse:
             if next_state not in visited:
                 visited.add(next_state)
                 parent[next_state] = (current, action)
+                tree_edges.append((current, next_state, action))
                 queue.append(next_state)
                 discovered.append(next_state)
 
@@ -68,6 +73,7 @@ def _forward_search(problem: GridProblem) -> SearchResponse:
             visited,
             current=current,
             discovered=discovered,
+            forward_tree_edges=tree_edges,
         )
 
     return _response(problem, SearchAlgorithm.FORWARD, [], trace, expanded_count, len(visited), max_frontier)
@@ -77,11 +83,21 @@ def _backward_search(problem: GridProblem) -> SearchResponse:
     queue: deque[GridState] = deque([problem.goal])
     visited: set[GridState] = {problem.goal}
     parent: ParentMap = {problem.goal: (None, None)}
+    tree_edges: TreeEdges = []
     trace: list[TraceFrame] = []
     expanded_count = 0
     max_frontier = 1
 
-    _append_frame(trace, "backward", "Initialize the frontier with the goal state.", queue, visited)
+    _append_frame(
+        trace,
+        "backward",
+        "Initialize the frontier with the goal state.",
+        (),
+        (),
+        backward_frontier=queue,
+        backward_visited=visited,
+        backward_tree_edges=tree_edges,
+    )
 
     while queue:
         current = queue.popleft()
@@ -94,9 +110,12 @@ def _backward_search(problem: GridProblem) -> SearchResponse:
                 trace,
                 "complete",
                 "Start reached by reverse expansion. Read the stored forward actions to form the plan.",
-                queue,
-                visited,
+                (),
+                (),
+                backward_frontier=queue,
+                backward_visited=visited,
                 current=current,
+                backward_tree_edges=tree_edges,
                 plan_prefix=_states_from_plan(problem.start, plan),
             )
             return _response(problem, SearchAlgorithm.BACKWARD, plan, trace, expanded_count, len(visited), max_frontier)
@@ -106,6 +125,7 @@ def _backward_search(problem: GridProblem) -> SearchResponse:
             if previous not in visited:
                 visited.add(previous)
                 parent[previous] = (current, action)
+                tree_edges.append((previous, current, action))
                 queue.append(previous)
                 discovered.append(previous)
 
@@ -114,10 +134,13 @@ def _backward_search(problem: GridProblem) -> SearchResponse:
             trace,
             "backward",
             f"Reverse-expand {format_state(current)} and add {len(discovered)} predecessor state(s).",
-            queue,
-            visited,
+            (),
+            (),
+            backward_frontier=queue,
+            backward_visited=visited,
             current=current,
             discovered=discovered,
+            backward_tree_edges=tree_edges,
         )
 
     return _response(problem, SearchAlgorithm.BACKWARD, [], trace, expanded_count, len(visited), max_frontier)
@@ -144,6 +167,8 @@ def _bidirectional_search(problem: GridProblem) -> SearchResponse:
     bwd_visited: set[GridState] = {problem.goal}
     fwd_parent: ParentMap = {problem.start: (None, None)}
     bwd_parent: ParentMap = {problem.goal: (None, None)}
+    fwd_edges: TreeEdges = []
+    bwd_edges: TreeEdges = []
     trace: list[TraceFrame] = []
     expanded_count = 0
     max_frontier = 2
@@ -156,14 +181,16 @@ def _bidirectional_search(problem: GridProblem) -> SearchResponse:
         fwd_visited,
         backward_frontier=bwd_queue,
         backward_visited=bwd_visited,
+        forward_tree_edges=fwd_edges,
+        backward_tree_edges=bwd_edges,
     )
 
     while fwd_queue or bwd_queue:
         if fwd_queue:
-            meeting, expanded = _expand_forward_side(problem, fwd_queue, fwd_visited, fwd_parent, bwd_visited, trace)
+            meeting, expanded = _expand_forward_side(problem, fwd_queue, fwd_visited, fwd_parent, bwd_visited, fwd_edges, trace)
             expanded_count += expanded
             max_frontier = max(max_frontier, len(fwd_queue) + len(bwd_queue))
-            _mirror_backward_sets(trace[-1], bwd_queue, bwd_visited)
+            _mirror_backward_sets(trace[-1], bwd_queue, bwd_visited, bwd_edges)
             if meeting is not None:
                 plan = _join_bidirectional_plan(fwd_parent, bwd_parent, problem.start, meeting, problem.goal)
                 _append_frame(
@@ -174,6 +201,8 @@ def _bidirectional_search(problem: GridProblem) -> SearchResponse:
                     fwd_visited,
                     backward_frontier=bwd_queue,
                     backward_visited=bwd_visited,
+                    forward_tree_edges=fwd_edges,
+                    backward_tree_edges=bwd_edges,
                     meeting=meeting,
                     plan_prefix=_states_from_plan(problem.start, plan),
                 )
@@ -190,10 +219,10 @@ def _bidirectional_search(problem: GridProblem) -> SearchResponse:
                 )
 
         if bwd_queue:
-            meeting, expanded = _expand_backward_side(problem, bwd_queue, bwd_visited, bwd_parent, fwd_visited, trace)
+            meeting, expanded = _expand_backward_side(problem, bwd_queue, bwd_visited, bwd_parent, fwd_visited, bwd_edges, trace)
             expanded_count += expanded
             max_frontier = max(max_frontier, len(fwd_queue) + len(bwd_queue))
-            _mirror_forward_sets(trace[-1], fwd_queue, fwd_visited)
+            _mirror_forward_sets(trace[-1], fwd_queue, fwd_visited, fwd_edges)
             if meeting is not None:
                 plan = _join_bidirectional_plan(fwd_parent, bwd_parent, problem.start, meeting, problem.goal)
                 _append_frame(
@@ -204,6 +233,8 @@ def _bidirectional_search(problem: GridProblem) -> SearchResponse:
                     fwd_visited,
                     backward_frontier=bwd_queue,
                     backward_visited=bwd_visited,
+                    forward_tree_edges=fwd_edges,
+                    backward_tree_edges=bwd_edges,
                     meeting=meeting,
                     plan_prefix=_states_from_plan(problem.start, plan),
                 )
@@ -229,6 +260,7 @@ def _expand_forward_side(
     visited: set[GridState],
     parent: ParentMap,
     other_visited: set[GridState],
+    tree_edges: TreeEdges,
     trace: list[TraceFrame],
 ) -> tuple[GridState | None, int]:
     current = queue.popleft()
@@ -241,6 +273,7 @@ def _expand_forward_side(
             if next_state not in visited:
                 visited.add(next_state)
                 parent[next_state] = (current, action)
+                tree_edges.append((current, next_state, action))
                 queue.append(next_state)
                 discovered.append(next_state)
                 if next_state in other_visited:
@@ -255,6 +288,7 @@ def _expand_forward_side(
         visited,
         current=current,
         discovered=discovered,
+        forward_tree_edges=tree_edges,
         meeting=meeting,
     )
     return meeting, 1
@@ -266,6 +300,7 @@ def _expand_backward_side(
     visited: set[GridState],
     parent: ParentMap,
     other_visited: set[GridState],
+    tree_edges: TreeEdges,
     trace: list[TraceFrame],
 ) -> tuple[GridState | None, int]:
     current = queue.popleft()
@@ -278,6 +313,7 @@ def _expand_backward_side(
             if previous not in visited:
                 visited.add(previous)
                 parent[previous] = (current, action)
+                tree_edges.append((previous, current, action))
                 queue.append(previous)
                 discovered.append(previous)
                 if previous in other_visited:
@@ -294,6 +330,7 @@ def _expand_backward_side(
         backward_visited=visited,
         current=current,
         discovered=discovered,
+        backward_tree_edges=tree_edges,
         meeting=meeting,
     )
     return meeting, 1
@@ -354,6 +391,8 @@ def _append_frame(
     current: GridState | None = None,
     backward_frontier: Iterable[GridState] = (),
     backward_visited: Iterable[GridState] = (),
+    forward_tree_edges: Iterable[tuple[GridState, GridState, Action]] = (),
+    backward_tree_edges: Iterable[tuple[GridState, GridState, Action]] = (),
     discovered: Iterable[GridState] = (),
     meeting: GridState | None = None,
     plan_prefix: Iterable[GridState] = (),
@@ -368,6 +407,8 @@ def _append_frame(
             visited=_states(visited),
             backward_frontier=_states(backward_frontier),
             backward_visited=_states(backward_visited),
+            forward_tree_edges=_tree_edges(forward_tree_edges),
+            backward_tree_edges=_tree_edges(backward_tree_edges),
             discovered=_states(discovered),
             meeting_state=_state(meeting),
             plan_prefix=_states(plan_prefix),
@@ -413,18 +454,27 @@ def _response(
     )
 
 
-def _mirror_backward_sets(frame: TraceFrame, frontier: Iterable[GridState], visited: Iterable[GridState]) -> None:
+def _mirror_backward_sets(frame: TraceFrame, frontier: Iterable[GridState], visited: Iterable[GridState], tree_edges: TreeEdges) -> None:
     frame.backward_frontier = _states(frontier)
     frame.backward_visited = _states(visited)
+    frame.backward_tree_edges = _tree_edges(tree_edges)
 
 
-def _mirror_forward_sets(frame: TraceFrame, frontier: Iterable[GridState], visited: Iterable[GridState]) -> None:
+def _mirror_forward_sets(frame: TraceFrame, frontier: Iterable[GridState], visited: Iterable[GridState], tree_edges: TreeEdges) -> None:
     frame.frontier = _states(frontier)
     frame.visited = _states(visited)
+    frame.forward_tree_edges = _tree_edges(tree_edges)
 
 
 def _states(states: Iterable[GridState]) -> list[State]:
     return [_state_or_raise(state) for state in sorted(states)]
+
+
+def _tree_edges(edges: Iterable[tuple[GridState, GridState, Action]]) -> list[SearchTreeEdge]:
+    return [
+        SearchTreeEdge(from_state=_state_or_raise(start), to_state=_state_or_raise(end), action=action)
+        for start, end, action in edges
+    ]
 
 
 def _state(state: GridState | None) -> State | None:
@@ -439,4 +489,3 @@ def _state_or_raise(state: GridState) -> State:
 
 def format_state(state: GridState) -> str:
     return f"({state[0]}, {state[1]})"
-

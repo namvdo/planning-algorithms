@@ -16,6 +16,8 @@ For the first version of this project, a grid world is used as the state space. 
 
 This is simple, but it is still useful. It makes the search frontier, visited set, parent pointers, and final plan visible.
 
+The visualization now separates these ideas. Colored cells show the states that have been visited or are still in the frontier. Thin tree edges show parent-pointer discoveries. The final plan is drawn as a stronger path on top of the explored tree. This makes it easier to see why breadth-first search may inspect many states that are not part of the final solution.
+
 ## Forward Search
 
 Forward search starts at the initial state and expands reachable states. With a FIFO queue, it becomes breadth-first search. On an unweighted graph, breadth-first search returns a shortest path in number of actions.
@@ -25,6 +27,7 @@ Important learning points:
 - the frontier contains states discovered but not expanded
 - the visited set prevents repeated work
 - parent pointers reconstruct the final plan
+- the search tree is usually larger than the final path
 - the worst case can grow quickly when the branching factor is high
 
 ## Backward Search

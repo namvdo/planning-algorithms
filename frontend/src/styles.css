@@ -295,26 +295,7 @@ p {
 }
 
 .cell.visited {
-  fill: #d8e8f1;
-}
-
-.cell.backward-visited {
-  fill: #efe4cc;
-}
-
-.cell.visited.backward-visited {
-  fill: #dfdac1;
-}
-
-.cell.frontier {
-  fill: #b8d2df;
-  stroke: #2f5d7c;
-  stroke-width: 2;
-}
-
-.cell.discovered {
-  stroke: #4c7f52;
-  stroke-width: 3;
+  fill: #93aac4;
 }
 
 .cell.path {
@@ -323,15 +304,11 @@ p {
   stroke-width: 2;
 }
 
-.cell.current {
-  stroke: #1f2933;
-  stroke-width: 3;
-}
-
-.cell.meeting {
-  fill: #c78863;
-  stroke: #803a19;
-  stroke-width: 3;
+.visited-marker {
+  fill: #e7f1fb;
+  stroke: #476c91;
+  stroke-width: 1.5;
+  pointer-events: none;
 }
 
 .cell-label {
@@ -342,6 +319,9 @@ p {
 }
 
 .legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-top: 12px;
   color: #536171;
   font-size: 0.84rem;
@@ -353,28 +333,57 @@ p {
   gap: 6px;
 }
 
-.swatch {
+.legend-chip {
+  position: relative;
   display: inline-block;
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border: 1px solid #8b98a5;
   border-radius: 3px;
 }
 
-.swatch.visited {
-  background: #d8e8f1;
+.legend-chip.visited-node {
+  background: #93aac4;
 }
 
-.swatch.backward {
-  background: #efe4cc;
+.legend-visit-dot {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: #e7f1fb;
+  border: 1px solid #476c91;
 }
 
-.swatch.frontier {
-  background: #b8d2df;
-}
-
-.swatch.path {
+.legend-chip.solution-path {
   background: #8aa86e;
+  border-color: #42633e;
+}
+
+.frame-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.frame-metrics span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid #d6dde4;
+  border-radius: 999px;
+  background: #f8fafb;
+  color: #415160;
+  font-size: 0.82rem;
+}
+
+.frame-metrics strong {
+  margin-right: 6px;
+  color: #1f2933;
 }
 
 .frame-message,
@@ -605,7 +614,6 @@ code {
 .theme-dark .hint,
 .theme-dark .muted,
 .theme-dark .subtle,
-.theme-dark .legend,
 .theme-dark .judge-summary span,
 .theme-dark .judge-case span {
   color: #9aa8b6;
@@ -686,19 +694,39 @@ code {
 }
 
 .theme-dark .cell.visited {
-  fill: #244456;
-}
-
-.theme-dark .cell.backward-visited {
-  fill: #4a422d;
+  fill: #587391;
 }
 
 .theme-dark .cell.path {
   fill: #78945d;
 }
 
+.theme-dark .visited-marker {
+  fill: #d9e8f8;
+  stroke: #274662;
+}
+
 .theme-dark .cell-label {
   fill: #f2f6fa;
+}
+
+.theme-dark .legend {
+  color: #9aa8b6;
+}
+
+.theme-dark .legend-chip.visited-node {
+  background: #587391;
+  border-color: #5f7590;
+}
+
+.theme-dark .legend-visit-dot {
+  background: #d9e8f8;
+  border-color: #274662;
+}
+
+.theme-dark .legend-chip.solution-path {
+  background: #78945d;
+  border-color: #62804e;
 }
 
 .theme-dark .judge-result {
@@ -719,4 +747,14 @@ code {
 .theme-dark .judge-case {
   border-color: #334454;
   background: rgba(255, 255, 255, 0.03);
+}
+
+.theme-dark .frame-metrics span {
+  border-color: #334454;
+  background: #121a22;
+  color: #c3d0dc;
+}
+
+.theme-dark .frame-metrics strong {
+  color: #f2f6fa;
 }

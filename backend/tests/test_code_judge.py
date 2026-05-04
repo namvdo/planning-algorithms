@@ -69,6 +69,14 @@ def forward_search(x_init, is_goal, get_actions, transition):
     assert result.trace[-1].message.startswith("Submitted code reached the goal")
 
 
+def test_default_forward_visualization_includes_search_tree_edges() -> None:
+    result = visualize_code(SearchAlgorithm.FORWARD, GRID, default_algorithm_code(SearchAlgorithm.FORWARD))
+
+    assert result.trace[-1].forward_tree_edges
+    assert result.trace[-1].visited
+    assert result.stats.max_frontier_size > 0
+
+
 def test_visualize_code_rejects_broken_submitted_code() -> None:
     code = """
 def forward_search(x_init, is_goal, get_actions, transition):

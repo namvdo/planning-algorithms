@@ -8,7 +8,6 @@ class SearchAlgorithm(StrEnum):
     BACKWARD = "backward"
     BIDIRECTIONAL = "bidirectional"
 
-
 class SearchStatus(StrEnum):
     FOUND = "found"
     NOT_FOUND = "not_found"
@@ -33,6 +32,12 @@ class PlanStep(BaseModel):
     action: str
 
 
+class SearchTreeEdge(BaseModel):
+    from_state: State
+    to_state: State
+    action: str
+
+
 class TraceFrame(BaseModel):
     index: int
     phase: str
@@ -42,6 +47,8 @@ class TraceFrame(BaseModel):
     visited: list[State] = Field(default_factory=list)
     backward_frontier: list[State] = Field(default_factory=list)
     backward_visited: list[State] = Field(default_factory=list)
+    forward_tree_edges: list[SearchTreeEdge] = Field(default_factory=list)
+    backward_tree_edges: list[SearchTreeEdge] = Field(default_factory=list)
     discovered: list[State] = Field(default_factory=list)
     meeting_state: State | None = None
     plan_prefix: list[State] = Field(default_factory=list)

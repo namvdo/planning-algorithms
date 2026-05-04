@@ -51,6 +51,30 @@ def test_bidirectional_search_returns_plan_and_meeting_state() -> None:
     assert _plan_reaches_goal(problem, response.plan)
 
 
+def test_forward_search_records_tree_edges_for_discovered_states() -> None:
+    response = run_search(parse_grid(GRID), SearchAlgorithm.FORWARD)
+    final_frame = response.trace[-1]
+
+    assert final_frame.forward_tree_edges
+    assert len(final_frame.forward_tree_edges) == len(final_frame.visited) - 1
+
+
+def test_backward_search_records_reverse_tree_edges() -> None:
+    response = run_search(parse_grid(GRID), SearchAlgorithm.BACKWARD)
+    final_frame = response.trace[-1]
+
+    assert final_frame.backward_tree_edges
+    assert len(final_frame.backward_tree_edges) == len(final_frame.backward_visited) - 1
+
+
+def test_bidirectional_search_records_both_search_trees() -> None:
+    response = run_search(parse_grid(GRID), SearchAlgorithm.BIDIRECTIONAL)
+    final_frame = response.trace[-1]
+
+    assert final_frame.forward_tree_edges
+    assert final_frame.backward_tree_edges
+
+
 @pytest.mark.parametrize("algorithm", list(SearchAlgorithm))
 def test_no_path_returns_not_found(algorithm: SearchAlgorithm) -> None:
     response = run_search(parse_grid(NO_PATH_GRID), algorithm)

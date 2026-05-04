@@ -13,6 +13,12 @@ export interface PlanStep {
   action: string;
 }
 
+export interface SearchTreeEdge {
+  from_state: State;
+  to_state: State;
+  action: string;
+}
+
 export interface TraceFrame {
   index: number;
   phase: string;
@@ -22,6 +28,8 @@ export interface TraceFrame {
   visited: State[];
   backward_frontier: State[];
   backward_visited: State[];
+  forward_tree_edges: SearchTreeEdge[];
+  backward_tree_edges: SearchTreeEdge[];
   discovered: State[];
   meeting_state: State | null;
   plan_prefix: State[];
