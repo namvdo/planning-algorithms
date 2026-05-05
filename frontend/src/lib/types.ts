@@ -1,5 +1,13 @@
-export type SearchAlgorithm = "forward" | "backward" | "bidirectional";
+export type SearchAlgorithm =
+  | "forward"
+  | "backward"
+  | "bidirectional"
+  | "dijkstra"
+  | "astar"
+  | "forward_value_iteration"
+  | "backward_value_iteration";
 export type SearchStatus = "found" | "not_found";
+export type ProblemKind = "grid" | "weighted_graph";
 
 export interface State {
   row: number;
@@ -19,6 +27,61 @@ export interface SearchTreeEdge {
   action: string;
 }
 
+export interface GraphNode {
+  id: string;
+  label: string | null;
+  x: number | null;
+  y: number | null;
+  heuristic: number;
+}
+
+
+export interface WeightedGraphEdge {
+  source: string;
+  target: string;
+  cost: number;
+}
+
+
+export interface WeightedGraphProblem {
+  nodes: GraphNode[];
+  edges: WeightedGraphEdge[];
+  start: string;
+  goal: string;
+}
+
+export interface GraphNodeLabel {
+  node_id: string;
+  g: number | null;
+  h: number | null;
+  f: number | null;
+  value: number | null;
+  residual: number | null;
+}
+
+export interface GraphTraceEdge {
+  source: string;
+  target: string;
+  cost: number;
+}
+
+export interface RelaxationEvent {
+  source: string;
+  target: string;
+  cost: number;
+  previous: number | null;
+  updated: number | null;
+  improved: boolean;
+}
+
+export interface QueueItem {
+  node_id: string;
+  priority: number;
+  g: number | null;
+  h: number | null;
+  value: number | null;
+}
+
 export interface TraceFrame {
   index: number;
   phase: string;
@@ -33,6 +96,17 @@ export interface TraceFrame {
   discovered: State[];
   meeting_state: State | null;
   plan_prefix: State[];
+  current_node: string | null;
+  frontier_nodes: string[];
+  visited_nodes: string[];
+  settled_nodes: string[];
+  updated_nodes: string[];
+  node_labels: GraphNodeLabel[];
+  active_edge: GraphTraceEdge | null;
+  parent_edges: GraphTraceEdge[];
+  policy_edges: GraphTraceEdge[];
+  relaxation: RelaxationEvent | null;
+  priority_queue: QueueItem[];
 }
 
 export interface SearchStats {
@@ -41,6 +115,9 @@ export interface SearchStats {
   max_frontier_size: number;
   path_length: number | null;
   trace_length: number;
+  total_cost: number | null;
+  relaxation_count: number;
+  sweep_count: number;
 }
 
 export interface SearchResponse {
@@ -51,6 +128,8 @@ export interface SearchResponse {
   rows: number;
   cols: number;
   plan: PlanStep[];
+  graph: WeightedGraphProblem | null;
+  graph_path: string[];
   trace: TraceFrame[];
   stats: SearchStats;
 }
