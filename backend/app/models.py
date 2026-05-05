@@ -7,6 +7,10 @@ class SearchAlgorithm(StrEnum):
     FORWARD = "forward"
     BACKWARD = "backward"
     BIDIRECTIONAL = "bidirectional"
+    DIJKSTRA = "dijkstra"
+    ASTAR = "astar"
+    FORWARD_VALUE_ITERATION = "forward_value_iteration"
+    BACKWARD_VALUE_ITERATION = "backward_value_iteration"
 
 class SearchStatus(StrEnum):
     FOUND = "found"
@@ -20,7 +24,8 @@ class State(BaseModel):
 
 class SearchRequest(BaseModel):
     algorithm: SearchAlgorithm
-    grid: list[str] = Field(min_length=1)
+    grid: list[str] | None = None
+    graph: "WeightedGraphProblem | None" = None
     start: State | None = None
     goal: State | None = None
 
@@ -38,6 +43,59 @@ class SearchTreeEdge(BaseModel):
     action: str
 
 
+class GraphNode(BaseModel):
+    id: str
+    label: str | None = None
+    x: float | None = None
+    y: float | None = None
+    heuristic: float = 0.0
+
+
+class WeightedGraphEdge(BaseModel):
+    source: str
+    target: str
+    cost: float = Field(gt=0)
+
+
+class WeightedGraphProblem(BaseModel):
+    nodes: list[GraphNode] = Field(min_length=1)
+    edges: list[WeightedGraphEdge] = Field(default_factory=list)
+    start: str
+    goal: str
+
+
+class GraphNodeLabel(BaseModel):
+    node_id: str
+    g: float | None = None
+    h: float | None = None
+    f: float | None = None
+    value: float | None = None
+    residual: float | None = None
+
+
+class GraphTraceEdge(BaseModel):
+    source: str
+    target: str
+    cost: float
+
+
+class RelaxationEvent(BaseModel):
+    source: str
+    target: str
+    cost: float
+    previous: float | None = None
+    updated: float | None = None
+    improved: bool
+
+
+class QueueItem(BaseModel):
+    node_id: str
+    priority: float
+    g: float | None = None
+    h: float | None = None
+    value: float | None = None
+
+
 class TraceFrame(BaseModel):
     index: int
     phase: str
@@ -52,6 +110,17 @@ class TraceFrame(BaseModel):
     discovered: list[State] = Field(default_factory=list)
     meeting_state: State | None = None
     plan_prefix: list[State] = Field(default_factory=list)
+    current_node: str | None = None
+    frontier_nodes: list[str] = Field(default_factory=list)
+    visited_nodes: list[str] = Field(default_factory=list)
+    settled_nodes: list[str] = Field(default_factory=list)
+    updated_nodes: list[str] = Field(default_factory=list)
+    node_labels: list[GraphNodeLabel] = Field(default_factory=list)
+    active_edge: GraphTraceEdge | None = None
+    parent_edges: list[GraphTraceEdge] = Field(default_factory=list)
+    policy_edges: list[GraphTraceEdge] = Field(default_factory=list)
+    relaxation: RelaxationEvent | None = None
+    priority_queue: list[QueueItem] = Field(default_factory=list)
 
 
 class SearchStats(BaseModel):
@@ -60,6 +129,9 @@ class SearchStats(BaseModel):
     max_frontier_size: int
     path_length: int | None
     trace_length: int
+    total_cost: float | None = None
+    relaxation_count: int = 0
+    sweep_count: int = 0
 
 
 class SearchResponse(BaseModel):
@@ -70,6 +142,8 @@ class SearchResponse(BaseModel):
     rows: int
     cols: int
     plan: list[PlanStep]
+    graph: WeightedGraphProblem | None = None
+    graph_path: list[str] = Field(default_factory=list)
     trace: list[TraceFrame]
     stats: SearchStats
 
