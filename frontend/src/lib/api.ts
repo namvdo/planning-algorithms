@@ -1,4 +1,4 @@
-import type { CodeEvaluationResponse, SearchAlgorithm, SearchResponse } from "./types";
+import type { CodeEvaluationResponse, SearchAlgorithm, SearchResponse, WeightedGraphProblem } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
@@ -8,6 +8,22 @@ export async function fetchSearchTrace(algorithm: SearchAlgorithm, gridText: str
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ algorithm, grid }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.json().catch(() => null);
+    const message = detail?.detail ?? `Request failed with status ${response.status}`;
+    throw new Error(Array.isArray(message) ? message.map((item) => item.msg).join("; ") : message);
+  }
+
+  return response.json();
+}
+
+export async function fetchWeightedGraphTrace(algorithm: SearchAlgorithm, graph: WeightedGraphProblem): Promise<SearchResponse> {
+  const response = await fetch(`${API_BASE}/api/chapter2/search/trace`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ algorithm, graph }),
   });
 
   if (!response.ok) {
