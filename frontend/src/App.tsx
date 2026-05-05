@@ -1,18 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlgorithmSelector } from "./components/AlgorithmSelector";
+import { GraphEditor } from "./components/GraphEditor";
 import { GridEditor } from "./components/GridEditor";
 import { GridVisualization } from "./components/GridVisualization";
 import { InspectorPanel } from "./components/InspectorPanel";
 import { LiveCodeEditor } from "./components/LiveCodeEditor";
 import { TraceControls } from "./components/TraceControls";
-import { algorithms, defaultGrid, plannedTopics } from "./lib/content";
-import { evaluateCode, fetchDefaultCode, visualizeCode } from "./lib/api";
+import { WeightedGraphVisualization } from "./components/WeightedGraphVisualization";
+import { algorithms, defaultGrid, defaultWeightedGraph, plannedTopics } from "./lib/content";
+import { evaluateCode, fetchDefaultCode, fetchWeightedGraphTrace, visualizeCode } from "./lib/api";
+import { parseGraphText } from "./lib/graphValidation";
 import { validateGridText } from "./lib/gridValidation";
 import type { CodeEvaluationResponse, SearchAlgorithm, SearchResponse } from "./lib/types";
 
 export function App() {
   const [selectedAlgorithm, setSelectedAlgorithm] = useState<SearchAlgorithm>("forward");
   const [gridText, setGridText] = useState(defaultGrid);
+  const [graphText, setGraphText] = useState(defaultWeightedGraph);
   const [result, setResult] = useState<SearchResponse | null>(null);
   const [frameIndex, setFrameIndex] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -25,10 +29,14 @@ export function App() {
   const [evaluation, setEvaluation] = useState<CodeEvaluationResponse | null>(null);
 
   const gridError = validateGridText(gridText);
+  const graphParse = useMemo(() => parseGraphText(graphText), [graphText]);
+  const graphError = graphParse.error;
   const selectedContent = useMemo(
     () => algorithms.find((algorithm) => algorithm.id === selectedAlgorithm) ?? algorithms[0],
     [selectedAlgorithm],
   );
+  const usesWeightedGraph = selectedContent.problemKind === "weighted_graph";
+  const canRun = usesWeightedGraph ? !graphError : !gridError && Boolean(code.trim());
   const frameCount = result?.trace.length ?? 0;
   const frame = result?.trace[Math.min(frameIndex, Math.max(frameCount - 1, 0))] ?? null;
 
@@ -61,7 +69,30 @@ export function App() {
     return () => window.clearInterval(timer);
   }, [playing, frameCount]);
 
-  async function runSearch(codeOverride?: string) {
+  async function runSearch(codeOverride?: string, algorithmOverride = selectedAlgorithm) {
+    const algorithmContent = algorithms.find((algorithm) => algorithm.id === algorithmOverride) ?? selectedContent;
+    if (algorithmContent.problemKind === "weighted_graph") {
+      if (graphError || !graphParse.graph) {
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      setCodeError(null);
+      setPlaying(false);
+      try {
+        const nextResult = await fetchWeightedGraphTrace(algorithmOverride, graphParse.graph);
+        setResult(nextResult);
+        setFrameIndex(Math.max(nextResult.trace.length - 1, 0));
+      } catch (nextError) {
+        const message = nextError instanceof Error ? nextError.message : "Unable to run weighted graph algorithm.";
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     const codeToRun = codeOverride ?? code;
     if (gridError || !codeToRun.trim()) {
       return;
@@ -72,7 +103,7 @@ export function App() {
     setCodeError(null);
     setPlaying(false);
     try {
-      const nextResult = await visualizeCode(selectedAlgorithm, gridText, codeToRun);
+      const nextResult = await visualizeCode(algorithmOverride, gridText, codeToRun);
       setResult(nextResult);
       setFrameIndex(Math.max(nextResult.trace.length - 1, 0));
     } catch (nextError) {
@@ -127,10 +158,18 @@ export function App() {
   }
 
   function selectAlgorithm(algorithm: SearchAlgorithm) {
+    const nextContent = algorithms.find((item) => item.id === algorithm) ?? algorithms[0];
     setSelectedAlgorithm(algorithm);
     setFrameIndex(0);
     setPlaying(false);
-    void loadDefaultCode(algorithm);
+    setEvaluation(null);
+    setError(null);
+    if (nextContent.liveCode) {
+      void loadDefaultCode(algorithm);
+    } else {
+      setCode("");
+      void runSearch(undefined, algorithm);
+    }
   }
 
   return (
@@ -172,9 +211,13 @@ export function App() {
             </div>
           </div>
 
-          <GridEditor value={gridText} error={gridError} onChange={setGridText} />
+          {usesWeightedGraph ? (
+            <GraphEditor value={graphText} error={graphError} onChange={setGraphText} />
+          ) : (
+            <GridEditor value={gridText} error={gridError} onChange={setGridText} />
+          )}
           <TraceControls
-            canRun={!gridError && Boolean(code.trim())}
+            canRun={canRun}
             loading={loading}
             playing={playing}
             frameIndex={frameIndex}
@@ -198,21 +241,29 @@ export function App() {
         </aside>
 
         <section className="main-column">
-          <GridVisualization result={result} frame={frame} gridText={gridText} />
-          <LiveCodeEditor
-            code={code}
-            theme={appTheme}
-            loading={codeLoading}
-            evaluation={evaluation}
-            onChange={(nextCode) => {
-              setCode(nextCode);
-              setEvaluation(null);
-              setError(null);
-            }}
-            onEvaluate={runCodeEvaluation}
-            onReset={() => void resetDefaultCodeAndRun()}
-          />
-          {codeError ? <p className="request-error" role="alert">{codeError}</p> : null}
+          {usesWeightedGraph ? (
+            <WeightedGraphVisualization result={result} frame={frame} />
+          ) : (
+            <GridVisualization result={result} frame={frame} gridText={gridText} />
+          )}
+          {selectedContent.liveCode ? (
+            <>
+              <LiveCodeEditor
+                code={code}
+                theme={appTheme}
+                loading={codeLoading}
+                evaluation={evaluation}
+                onChange={(nextCode) => {
+                  setCode(nextCode);
+                  setEvaluation(null);
+                  setError(null);
+                }}
+                onEvaluate={runCodeEvaluation}
+                onReset={() => void resetDefaultCodeAndRun()}
+              />
+              {codeError ? <p className="request-error" role="alert">{codeError}</p> : null}
+            </>
+          ) : null}
         </section>
         <InspectorPanel algorithm={selectedContent} result={result} frame={frame} />
       </section>
