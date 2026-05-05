@@ -58,7 +58,11 @@ export function App() {
     return () => window.clearInterval(timer);
   }, [playing, frameCount]);
 
-  async function runSearch(codeOverride?: string, algorithmOverride = selectedAlgorithm): Promise<SearchResponse | null> {
+  async function runSearch(
+    codeOverride?: string,
+    algorithmOverride = selectedAlgorithm,
+    viewMode: "start" | "end" = "end",
+  ): Promise<SearchResponse | null> {
     const algorithmContent = algorithms.find((algorithm) => algorithm.id === algorithmOverride) ?? selectedContent;
     if (algorithmContent.problemKind === "weighted_graph") {
       if (graphError || !graphParse.graph) {
@@ -72,7 +76,7 @@ export function App() {
       try {
         const nextResult = await fetchWeightedGraphTrace(algorithmOverride, graphParse.graph);
         setResult(nextResult);
-        setFrameIndex(0);
+        setFrameIndex(viewMode === "end" ? Math.max(nextResult.trace.length - 1, 0) : 0);
         return nextResult;
       } catch (nextError) {
         const message = nextError instanceof Error ? nextError.message : "Unable to run weighted graph algorithm.";
@@ -95,7 +99,7 @@ export function App() {
     try {
       const nextResult = await visualizeCode(algorithmOverride, gridText, codeToRun);
       setResult(nextResult);
-      setFrameIndex(0);
+      setFrameIndex(viewMode === "end" ? Math.max(nextResult.trace.length - 1, 0) : 0);
       return nextResult;
     } catch (nextError) {
       const message = nextError instanceof Error ? nextError.message : "Unable to run submitted code.";
@@ -165,7 +169,7 @@ export function App() {
   }
 
   async function stepFromStart() {
-    const nextResult = await runSearch();
+    const nextResult = await runSearch(undefined, selectedAlgorithm, "start");
     if (nextResult) {
       setFrameIndex(Math.min(1, Math.max(nextResult.trace.length - 1, 0)));
     }

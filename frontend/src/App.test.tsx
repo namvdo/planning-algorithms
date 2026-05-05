@@ -223,7 +223,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /Forward Forward Search/i }));
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some((call) => String(call[0]).includes("/code/default/forward"))).toBe(true));
     fireEvent.click(screen.getByRole("button", { name: /^Run$/i }));
-    await screen.findByText("Frame 1 of 2");
+    await screen.findByText("Frame 2 of 2");
 
     fireEvent.click(screen.getByRole("button", { name: /^Reset$/i }));
     expect(screen.getByText("Frame 1 of 2")).toBeInTheDocument();
