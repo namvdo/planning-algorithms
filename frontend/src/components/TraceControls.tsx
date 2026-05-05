@@ -25,6 +25,9 @@ export function TraceControls({
   onNext,
   onTogglePlay,
 }: Props) {
+  const hasTrace = frameCount > 0;
+  const nextDisabled = loading || (!hasTrace && !canRun) || (hasTrace && frameIndex >= frameCount - 1);
+
   return (
     <div className="controls" aria-label="Trace controls">
       <button type="button" onClick={onRun} disabled={!canRun || loading}>
@@ -38,7 +41,7 @@ export function TraceControls({
       <button type="button" aria-label="Previous frame" onClick={onPrevious} disabled={frameIndex <= 0}>
         <StepBack size={16} />
       </button>
-      <button type="button" aria-label="Next frame" onClick={onNext} disabled={frameIndex >= frameCount - 1}>
+      <button type="button" aria-label="Next frame" onClick={onNext} disabled={nextDisabled}>
         <StepForward size={16} />
       </button>
       <button type="button" onClick={onTogglePlay} disabled={frameCount <= 1}>
@@ -48,4 +51,3 @@ export function TraceControls({
     </div>
   );
 }
-

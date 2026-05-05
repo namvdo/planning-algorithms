@@ -58,11 +58,11 @@ export function App() {
     return () => window.clearInterval(timer);
   }, [playing, frameCount]);
 
-  async function runSearch(codeOverride?: string, algorithmOverride = selectedAlgorithm) {
+  async function runSearch(codeOverride?: string, algorithmOverride = selectedAlgorithm): Promise<SearchResponse | null> {
     const algorithmContent = algorithms.find((algorithm) => algorithm.id === algorithmOverride) ?? selectedContent;
     if (algorithmContent.problemKind === "weighted_graph") {
       if (graphError || !graphParse.graph) {
-        return;
+        return null;
       }
 
       setLoading(true);
@@ -72,19 +72,20 @@ export function App() {
       try {
         const nextResult = await fetchWeightedGraphTrace(algorithmOverride, graphParse.graph);
         setResult(nextResult);
-        setFrameIndex(Math.max(nextResult.trace.length - 1, 0));
+        setFrameIndex(0);
+        return nextResult;
       } catch (nextError) {
         const message = nextError instanceof Error ? nextError.message : "Unable to run weighted graph algorithm.";
         setError(message);
+        return null;
       } finally {
         setLoading(false);
       }
-      return;
     }
 
     const codeToRun = codeOverride ?? code;
     if (gridError || !codeToRun.trim()) {
-      return;
+      return null;
     }
 
     setLoading(true);
@@ -94,10 +95,12 @@ export function App() {
     try {
       const nextResult = await visualizeCode(algorithmOverride, gridText, codeToRun);
       setResult(nextResult);
-      setFrameIndex(Math.max(nextResult.trace.length - 1, 0));
+      setFrameIndex(0);
+      return nextResult;
     } catch (nextError) {
       const message = nextError instanceof Error ? nextError.message : "Unable to run submitted code.";
       setError(`${message} Reset code to restore the default implementation.`);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -161,6 +164,13 @@ export function App() {
     }
   }
 
+  async function stepFromStart() {
+    const nextResult = await runSearch();
+    if (nextResult) {
+      setFrameIndex(Math.min(1, Math.max(nextResult.trace.length - 1, 0)));
+    }
+  }
+
   return (
     <main className={`app-shell ${appTheme === "dark" ? "theme-dark" : "theme-light"}`}>
       <header className="topbar">
@@ -221,6 +231,10 @@ export function App() {
               setFrameIndex((current) => Math.max(0, current - 1));
             }}
             onNext={() => {
+              if (frameCount === 0) {
+                void stepFromStart();
+                return;
+              }
               setPlaying(false);
               setFrameIndex((current) => Math.min(frameCount - 1, current + 1));
             }}

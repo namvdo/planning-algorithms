@@ -223,7 +223,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /Forward Forward Search/i }));
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some((call) => String(call[0]).includes("/code/default/forward"))).toBe(true));
     fireEvent.click(screen.getByRole("button", { name: /^Run$/i }));
-    await screen.findByText("Frame 2 of 2");
+    await screen.findByText("Frame 1 of 2");
 
     fireEvent.click(screen.getByRole("button", { name: /^Reset$/i }));
     expect(screen.getByText("Frame 1 of 2")).toBeInTheDocument();
@@ -292,12 +292,14 @@ describe("App", () => {
     render(<App />);
     await screen.findByText("No trace");
     expect(vi.mocked(fetch).mock.calls.some((call) => String(call[0]).includes("/search/trace"))).toBe(false);
+    expect(screen.getByLabelText("Next frame")).toBeEnabled();
     vi.mocked(fetch).mockClear();
 
-    fireEvent.click(screen.getByRole("button", { name: /^Run$/i }));
+    fireEvent.click(screen.getByLabelText("Next frame"));
 
     await screen.findAllByText("Weighted Graph");
     await screen.findAllByText("Optimal path S -> B -> G has total cost 5.");
+    expect(screen.getByText("Frame 1 of 1")).toBeInTheDocument();
     const traceCall = vi.mocked(fetch).mock.calls.find((call) => String(call[0]).includes("/search/trace"));
     const request = JSON.parse(String(traceCall?.[1]?.body));
     expect(request.algorithm).toBe("dijkstra");
