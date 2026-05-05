@@ -283,6 +283,16 @@ p {
   background: #f9fafb;
 }
 
+.graph-svg {
+  display: block;
+  width: 100%;
+  height: min(62vh, 620px);
+  min-height: 360px;
+  border: 1px solid #d6dde4;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
 .cell {
   fill: #ffffff;
   stroke: #c8d0d8;
@@ -314,6 +324,97 @@ p {
 .cell-label {
   fill: #17202a;
   font-size: 16px;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+.graph-edge {
+  stroke: #9aa7b4;
+  stroke-width: 2;
+  fill: none;
+}
+
+.graph-edge.parent {
+  stroke: #5d7690;
+}
+
+.graph-edge.policy {
+  stroke: #807450;
+  stroke-dasharray: 6 4;
+}
+
+.graph-edge.active {
+  stroke: #bf6a3b;
+  stroke-width: 4;
+}
+
+.graph-edge.path {
+  stroke: #42633e;
+  stroke-width: 5;
+}
+
+.graph-arrow {
+  fill: #7c8996;
+}
+
+.edge-cost {
+  fill: #314252;
+  paint-order: stroke;
+  stroke: #f9fafb;
+  stroke-width: 5;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.graph-node {
+  fill: #ffffff;
+  stroke: #526273;
+  stroke-width: 2;
+}
+
+.graph-node.frontier {
+  fill: #dceaf5;
+  stroke: #457399;
+}
+
+.graph-node.settled {
+  fill: #d5dee8;
+  stroke: #526273;
+}
+
+.graph-node.updated {
+  fill: #fff1df;
+  stroke: #b76435;
+}
+
+.graph-node.current {
+  stroke: #bf6a3b;
+  stroke-width: 5;
+}
+
+.graph-node.path {
+  fill: #e4efd9;
+  stroke: #42633e;
+}
+
+.graph-node.start {
+  stroke-dasharray: 0;
+}
+
+.graph-node.goal {
+  stroke-dasharray: 4 3;
+}
+
+.graph-node-title {
+  fill: #17202a;
+  font-size: 16px;
+  font-weight: 850;
+  pointer-events: none;
+}
+
+.graph-node-values {
+  fill: #405163;
+  font-size: 10px;
   font-weight: 800;
   pointer-events: none;
 }
@@ -362,6 +463,26 @@ p {
   border-color: #42633e;
 }
 
+.legend-chip.graph-current {
+  background: #fff1df;
+  border-color: #bf6a3b;
+}
+
+.legend-chip.graph-frontier {
+  background: #dceaf5;
+  border-color: #457399;
+}
+
+.legend-chip.graph-settled {
+  background: #d5dee8;
+  border-color: #526273;
+}
+
+.legend-chip.graph-path {
+  background: #e4efd9;
+  border-color: #42633e;
+}
+
 .frame-metrics {
   display: flex;
   flex-wrap: wrap;
@@ -390,6 +511,27 @@ p {
 .trace-line {
   margin-bottom: 0;
   color: #374656;
+}
+
+.queue-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid #d6dde4;
+  border-radius: 6px;
+  background: #f8fafb;
+}
+
+.queue-strip span {
+  padding: 4px 7px;
+  border: 1px solid #cbd3dc;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #334454;
+  font-size: 0.82rem;
+  font-weight: 750;
 }
 
 .stats {
@@ -667,6 +809,7 @@ code {
 .theme-dark .latex-block,
 .theme-dark .code-block,
 .theme-dark .grid-svg,
+.theme-dark .graph-svg,
 .theme-dark .grid-editor .cm-editor,
 .theme-dark .live-code-panel .cm-editor {
   border-color: #334454;
@@ -708,6 +851,72 @@ code {
 
 .theme-dark .cell-label {
   fill: #f2f6fa;
+}
+
+.theme-dark .graph-edge {
+  stroke: #596a7a;
+}
+
+.theme-dark .graph-edge.parent {
+  stroke: #86a6c2;
+}
+
+.theme-dark .graph-edge.policy {
+  stroke: #c5b268;
+}
+
+.theme-dark .graph-edge.active {
+  stroke: #e28b56;
+}
+
+.theme-dark .graph-edge.path {
+  stroke: #8fb878;
+}
+
+.theme-dark .graph-arrow {
+  fill: #91a0ae;
+}
+
+.theme-dark .edge-cost {
+  fill: #dbe5ef;
+  stroke: #121a22;
+}
+
+.theme-dark .graph-node {
+  fill: #1c2732;
+  stroke: #7d8fa1;
+}
+
+.theme-dark .graph-node.frontier {
+  fill: #263f56;
+  stroke: #8bb8dc;
+}
+
+.theme-dark .graph-node.settled {
+  fill: #314050;
+  stroke: #9aa8b6;
+}
+
+.theme-dark .graph-node.updated {
+  fill: #4a2f22;
+  stroke: #e28b56;
+}
+
+.theme-dark .graph-node.current {
+  stroke: #e28b56;
+}
+
+.theme-dark .graph-node.path {
+  fill: #304a2f;
+  stroke: #8fb878;
+}
+
+.theme-dark .graph-node-title {
+  fill: #f2f6fa;
+}
+
+.theme-dark .graph-node-values {
+  fill: #c8d4df;
 }
 
 .theme-dark .legend {
@@ -757,4 +966,15 @@ code {
 
 .theme-dark .frame-metrics strong {
   color: #f2f6fa;
+}
+
+.theme-dark .queue-strip {
+  border-color: #334454;
+  background: #121a22;
+}
+
+.theme-dark .queue-strip span {
+  border-color: #405264;
+  background: #1e2a35;
+  color: #d7e0e9;
 }

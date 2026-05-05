@@ -1,10 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.code_judge import default_algorithm_code, evaluate_code, visualize_code
 from app.grid import parse_grid
 from app.models import CodeEvaluationRequest, CodeEvaluationResponse, CodeVisualizationRequest, SearchAlgorithm, SearchRequest, SearchResponse
 from app.search import run_search
+from app.weighted_graph import run_weighted_graph_search
 
 app = FastAPI(title="Planning Algorithms Explorer API")
 
@@ -31,6 +32,18 @@ def health() -> dict[str, str]:
 
 @app.post("/api/chapter2/search/trace", response_model=SearchResponse)
 def chapter2_search_trace(request: SearchRequest) -> SearchResponse:
+    if request.algorithm in {
+        SearchAlgorithm.DIJKSTRA,
+        SearchAlgorithm.ASTAR,
+        SearchAlgorithm.FORWARD_VALUE_ITERATION,
+        SearchAlgorithm.BACKWARD_VALUE_ITERATION,
+    }:
+        if request.graph is None:
+            raise HTTPException(status_code=422, detail="Weighted graph algorithms require a graph problem.")
+        return run_weighted_graph_search(request.graph, request.algorithm)
+
+    if request.grid is None:
+        raise HTTPException(status_code=422, detail="Grid algorithms require a grid problem.")
     problem = parse_grid(request.grid, request.start, request.goal)
     return run_search(problem, request.algorithm)
 
