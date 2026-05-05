@@ -22,7 +22,9 @@ def run_search(problem: GridProblem, algorithm: SearchAlgorithm) -> SearchRespon
         return _forward_search(problem)
     if algorithm == SearchAlgorithm.BACKWARD:
         return _backward_search(problem)
-    return _bidirectional_search(problem)
+    if algorithm == SearchAlgorithm.BIDIRECTIONAL:
+        return _bidirectional_search(problem)
+    raise ValueError(f"{algorithm.value} is not a grid search algorithm.")
 
 
 def _forward_search(problem: GridProblem) -> SearchResponse:
