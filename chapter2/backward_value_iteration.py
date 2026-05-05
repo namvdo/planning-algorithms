@@ -66,4 +66,32 @@ def backward_value_iteration(
         sweeps: number of sweeps until convergence
     """
 
-    pass
+    V: CostMap = dict.fromkeys(graph, INF)
+    V[goal] = 0.0 
+
+    parent: Parent = dict.fromkeys(graph, None)
+    sweeps = 0
+
+    while True: 
+        sweeps += 1 
+        changed = False 
+
+        for x, edges in graph.items(): 
+            if x == goal: 
+                continue  # anchor, we don't have to update the goal
+
+            for neighbor, cost in edges: 
+                if V[neighbor] == INF: 
+                    continue # neighbor not yet reached - skip
+
+                candidate = cost + V[neighbor]
+
+                if candidate < V[x] - tol: 
+                    V[x] = candidate
+                    parent[x] = neighbor
+                    changed = True
+        if not changed: 
+            break
+    return V, parent, sweeps
+    
+
