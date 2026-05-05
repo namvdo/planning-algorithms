@@ -68,6 +68,75 @@ const traceResponse = {
   },
 };
 
+const weightedTraceResponse = {
+  algorithm: "dijkstra",
+  status: "found",
+  start: { row: 0, col: 0 },
+  goal: { row: 0, col: 0 },
+  rows: 0,
+  cols: 0,
+  plan: [],
+  graph: {
+    nodes: [
+      { id: "S", label: null, x: 48, y: 170, heuristic: 7 },
+      { id: "B", label: null, x: 220, y: 270, heuristic: 6 },
+      { id: "G", label: null, x: 560, y: 170, heuristic: 0 },
+    ],
+    edges: [
+      { source: "S", target: "B", cost: 2 },
+      { source: "B", target: "G", cost: 3 },
+    ],
+    start: "S",
+    goal: "G",
+  },
+  graph_path: ["S", "B", "G"],
+  trace: [
+    {
+      index: 0,
+      phase: "complete",
+      message: "Optimal path S -> B -> G has total cost 5.",
+      current: null,
+      frontier: [],
+      visited: [],
+      backward_frontier: [],
+      backward_visited: [],
+      forward_tree_edges: [],
+      backward_tree_edges: [],
+      discovered: [],
+      meeting_state: null,
+      plan_prefix: [],
+      current_node: "G",
+      frontier_nodes: [],
+      visited_nodes: ["S", "B", "G"],
+      settled_nodes: ["S", "B", "G"],
+      updated_nodes: [],
+      node_labels: [
+        { node_id: "S", g: 0, h: 7, f: 7, value: null, residual: null },
+        { node_id: "B", g: 2, h: 6, f: 8, value: null, residual: null },
+        { node_id: "G", g: 5, h: 0, f: 5, value: null, residual: null },
+      ],
+      active_edge: null,
+      parent_edges: [
+        { source: "S", target: "B", cost: 2 },
+        { source: "B", target: "G", cost: 3 },
+      ],
+      policy_edges: [],
+      relaxation: null,
+      priority_queue: [],
+    },
+  ],
+  stats: {
+    expanded_count: 3,
+    visited_count: 3,
+    max_frontier_size: 1,
+    path_length: 2,
+    trace_length: 1,
+    total_cost: 5,
+    relaxation_count: 2,
+    sweep_count: 0,
+  },
+};
+
 describe("App", () => {
   beforeEach(() => {
     vi.stubGlobal(
@@ -105,6 +174,12 @@ describe("App", () => {
           return {
             ok: true,
             json: async () => traceResponse,
+          };
+        }
+        if (url.includes("/search/trace")) {
+          return {
+            ok: true,
+            json: async () => weightedTraceResponse,
           };
         }
         return {
@@ -206,5 +281,21 @@ describe("App", () => {
     await screen.findByText("All judge cases passed");
     expect(vi.mocked(fetch).mock.calls.some((call) => String(call[0]).includes("/code/evaluate"))).toBe(true);
     expect(vi.mocked(fetch).mock.calls.some((call) => String(call[0]).includes("/code/visualize"))).toBe(true);
+  });
+
+  it("runs weighted graph algorithms through the graph trace endpoint", async () => {
+    render(<App />);
+    await screen.findByText("Frame 2 of 2");
+    vi.mocked(fetch).mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: /Dijkstra Dijkstra's Algorithm/i }));
+
+    await screen.findAllByText("Weighted Graph");
+    await screen.findAllByText("Optimal path S -> B -> G has total cost 5.");
+    const traceCall = vi.mocked(fetch).mock.calls.find((call) => String(call[0]).includes("/search/trace"));
+    const request = JSON.parse(String(traceCall?.[1]?.body));
+    expect(request.algorithm).toBe("dijkstra");
+    expect(request.graph.start).toBe("S");
+    expect(screen.queryByLabelText("Python3 live code editor")).not.toBeInTheDocument();
   });
 });
