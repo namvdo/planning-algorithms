@@ -21,3 +21,75 @@ SAMPLE_GRAPH = {
     'G': [],
 }
 
+
+def dijkstra(graph: Graph, start: Node) -> tuple[GValues, Parent]:
+    g: GValues = {node: float("inf") for node in graph}
+    g[start] = 0 
+    parent: Parent = {start: None}
+    pq: list[tuple[Cost, Node]] = [(0, start)] 
+    visited: set[Node] = set() 
+
+    while pq: 
+        cost, x = heapq.heappop(pq)
+
+        if x in visited:
+            continue 
+
+        visited.add(x) 
+        for neighbor, edge_cost in graph[x]: 
+            new_cost = g[x] + edge_cost 
+            if new_cost < g[neighbor]:
+                g[neighbor] = new_cost 
+                parent[neighbor] = x 
+                heapq.heappush(pq, (new_cost, neighbor))
+
+    return g, parent 
+
+
+
+# label correcting 
+
+def label_correcting(graph: Graph, start: Node) -> tuple[GValues, Parent]:
+    g: GValues = {node: float("inf") for node in graph}
+    g[start] = 0 
+    parent: Parent = {start: None}
+    in_queue: set[Node] = set([start])
+
+    queue: deque[Node] = deque([start])
+    while queue: 
+        x = queue.popleft() 
+        in_queue.discard(x) 
+
+        for neighbor, edge_cost in graph[x]:
+            new_cost = g[x] + edge_cost
+            if new_cost < g[neighbor]:
+                g[neighbor] = new_cost 
+                parent[neighbor] = x 
+                if neighbor not in in_queue:
+                    queue.append(neighbor)
+                    in_queue.add(neighbor)
+    
+    return g, parent
+
+def reconstruct_path(parent: Parent, goal: Node) -> list[Node]: 
+    path: list[Node] = [] 
+    node: Node | None = goal 
+    while node is not None: 
+        path.append(node) 
+        node = parent.get(node) 
+    
+    return list(reversed(path))
+
+
+for name, fn in [("Dijkstra", dijkstra), ("Label Correcting", label_correcting)]:
+    g, parent = fn(SAMPLE_GRAPH, "S")
+    path = reconstruct_path(parent, "G")
+    print(f"{name}:")
+    print(f"costs : { dict(g.items()) }")
+    print(f"path  : {' → '.join(path)}")
+    print(f"total : {g['G']}\n")
+
+
+
+
+
