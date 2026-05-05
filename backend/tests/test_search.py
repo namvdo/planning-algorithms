@@ -6,6 +6,7 @@ from app.grid import DIRECTIONS, GridProblem, parse_grid
 from app.main import app
 from app.models import SearchAlgorithm, State
 from app.search import run_search
+from app.weighted_graph import run_weighted_graph_search
 
 
 GRID = [
@@ -20,6 +21,29 @@ NO_PATH_GRID = [
     "###",
     "...",
 ]
+
+GRID_ALGORITHMS = [SearchAlgorithm.FORWARD, SearchAlgorithm.BACKWARD, SearchAlgorithm.BIDIRECTIONAL]
+
+SAMPLE_GRAPH = {
+    "nodes": [
+        {"id": "S", "x": 40, "y": 120, "heuristic": 7},
+        {"id": "A", "x": 190, "y": 50, "heuristic": 5},
+        {"id": "B", "x": 190, "y": 190, "heuristic": 6},
+        {"id": "C", "x": 340, "y": 120, "heuristic": 2},
+        {"id": "G", "x": 490, "y": 120, "heuristic": 0},
+    ],
+    "edges": [
+        {"source": "S", "target": "A", "cost": 4},
+        {"source": "S", "target": "B", "cost": 2},
+        {"source": "B", "target": "A", "cost": 1},
+        {"source": "A", "target": "C", "cost": 3},
+        {"source": "B", "target": "C", "cost": 8},
+        {"source": "A", "target": "G", "cost": 10},
+        {"source": "C", "target": "G", "cost": 2},
+    ],
+    "start": "S",
+    "goal": "G",
+}
 
 
 def test_forward_search_finds_valid_shortest_plan() -> None:
@@ -75,7 +99,7 @@ def test_bidirectional_search_records_both_search_trees() -> None:
     assert final_frame.backward_tree_edges
 
 
-@pytest.mark.parametrize("algorithm", list(SearchAlgorithm))
+@pytest.mark.parametrize("algorithm", GRID_ALGORITHMS)
 def test_no_path_returns_not_found(algorithm: SearchAlgorithm) -> None:
     response = run_search(parse_grid(NO_PATH_GRID), algorithm)
 
@@ -84,7 +108,7 @@ def test_no_path_returns_not_found(algorithm: SearchAlgorithm) -> None:
     assert response.stats.path_length is None
 
 
-@pytest.mark.parametrize("algorithm", list(SearchAlgorithm))
+@pytest.mark.parametrize("algorithm", GRID_ALGORITHMS)
 def test_start_equals_goal_is_found_with_empty_plan(algorithm: SearchAlgorithm) -> None:
     problem = parse_grid(["S"], goal=State(row=0, col=0))
     response = run_search(problem, algorithm)
@@ -125,7 +149,7 @@ def test_api_returns_trace_payload() -> None:
     assert payload["stats"]["path_length"] == 9
 
 
-@pytest.mark.parametrize("algorithm", list(SearchAlgorithm))
+@pytest.mark.parametrize("algorithm", GRID_ALGORITHMS)
 def test_trace_visited_sets_grow_monotonically(algorithm: SearchAlgorithm) -> None:
     response = run_search(parse_grid(GRID), algorithm)
     forward_seen: set[tuple[int, int]] = set()
@@ -140,6 +164,42 @@ def test_trace_visited_sets_grow_monotonically(algorithm: SearchAlgorithm) -> No
             assert backward_seen <= backward_visited
         forward_seen |= visited
         backward_seen |= backward_visited
+
+
+@pytest.mark.parametrize(
+    "algorithm",
+    [
+        SearchAlgorithm.DIJKSTRA,
+        SearchAlgorithm.ASTAR,
+        SearchAlgorithm.FORWARD_VALUE_ITERATION,
+        SearchAlgorithm.BACKWARD_VALUE_ITERATION,
+    ],
+)
+def test_weighted_graph_algorithms_return_optimal_path(algorithm: SearchAlgorithm) -> None:
+    from app.models import WeightedGraphProblem
+
+    response = run_weighted_graph_search(WeightedGraphProblem.model_validate(SAMPLE_GRAPH), algorithm)
+
+    assert response.status == "found"
+    assert response.graph_path == ["S", "B", "A", "C", "G"]
+    assert response.stats.total_cost == 8
+    assert response.trace
+    assert any(frame.node_labels for frame in response.trace)
+    assert any(frame.relaxation and frame.relaxation.improved for frame in response.trace)
+
+
+def test_weighted_graph_trace_api() -> None:
+    client = TestClient(app)
+    response = client.post(
+        "/api/chapter2/search/trace",
+        json={"algorithm": "dijkstra", "graph": SAMPLE_GRAPH},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["algorithm"] == "dijkstra"
+    assert payload["graph_path"] == ["S", "B", "A", "C", "G"]
+    assert payload["stats"]["total_cost"] == 8
 
 
 def _plan_reaches_goal(problem: GridProblem, plan: list) -> bool:
