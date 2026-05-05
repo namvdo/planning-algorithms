@@ -44,12 +44,24 @@ export function InspectorPanel({ algorithm, result, frame }: Props) {
               <dd>{result.stats.path_length ?? "n/a"}</dd>
             </div>
             <div>
+              <dt>Cost</dt>
+              <dd>{result.stats.total_cost ?? "n/a"}</dd>
+            </div>
+            <div>
               <dt>Expanded</dt>
               <dd>{result.stats.expanded_count}</dd>
             </div>
             <div>
               <dt>Visited</dt>
               <dd>{result.stats.visited_count}</dd>
+            </div>
+            <div>
+              <dt>Relaxed</dt>
+              <dd>{result.stats.relaxation_count ?? 0}</dd>
+            </div>
+            <div>
+              <dt>Sweeps</dt>
+              <dd>{result.stats.sweep_count ?? 0}</dd>
             </div>
           </dl>
         ) : (
